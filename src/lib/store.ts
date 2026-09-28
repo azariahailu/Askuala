@@ -9,13 +9,19 @@ import { smtpPeek } from "./mail-account";
 import { assistantProvider } from "./llm";
 import { ensureGuideChat } from "./guide-chat";
 import { isAdminEmail } from "./admin";
-import { persistList, persistReadJson, persistWriteJson, onVercel, usesBlob } from "./persist";
+import { applyPlannerSeed, isOwnerPlannerEmail, readOwnerUpload } from "./planner-seed";
+import { persistList, persistRead, persistReadJson, persistWrite, persistWriteJson, onVercel, usesBlob } from "./persist";
 import type { AppState, AppUser, ClientState, PublicSettings } from "./types";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const queues = new Map<string, Promise<void>>();
+const emails = new Map<string, string>();
+
+export function bindUserEmail(userId: string, email: string) {
+  emails.set(userId, email.trim().toLowerCase());
+}
 
 function assertUserId(userId: string) {
   if (!/^[A-Za-z0-9_-]{8,32}$/.test(userId)) throw new Error("Invalid user");
@@ -53,106 +59,114 @@ async function loadRawStore(userId: string): Promise<string | null> {
   }
 }
 
+function hydrateState(parsed: AppState): AppState {
+  const base = emptyState();
+  const merged = {
+    ...base,
+    ...parsed,
+    settings: {
+      ...base.settings,
+      ...parsed.settings,
+      openaiKey: parsed.settings?.openaiKey ?? "",
+      deepseekKey: parsed.settings?.deepseekKey ?? "",
+      geminiKey: parsed.settings?.geminiKey ?? "",
+      notification: {
+        ...base.settings.notification,
+        ...parsed.settings?.notification,
+        digestDaily: parsed.settings?.notification?.digestDaily ?? true,
+        digestWeekly: parsed.settings?.notification?.digestWeekly ?? true,
+        digestDailyHour: parsed.settings?.notification?.digestDailyHour ?? 22,
+        digestDailyMinute: parsed.settings?.notification?.digestDailyMinute ?? 0,
+      },
+      google: { ...base.settings.google, ...parsed.settings?.google },
+      smtp: { ...base.settings.smtp, ...parsed.settings?.smtp },
+    },
+    courses: (parsed.courses ?? []).map((c) => ({ ...c, officeHours: c.officeHours || "" })),
+    events: (parsed.events ?? [])
+      .filter((e) => e && typeof e.start === "string" && e.start)
+      .map((e) => ({
+        ...e,
+        title: e.title ?? "",
+        details: e.details ?? "",
+        releasedAt: e.releasedAt ?? null,
+        googleAlerts: e.googleAlerts ?? false,
+        alerts: e.alerts ?? [],
+      })),
+    notes: parsed.notes ?? [],
+    messages: parsed.messages ?? [],
+    chats: parsed.chats ?? [],
+    activeChatId: parsed.activeChatId ?? null,
+    quickPad: {
+      body: parsed.quickPad?.body || "",
+      todos: Array.isArray(parsed.quickPad?.todos) ? parsed.quickPad.todos : [],
+      updatedAt: parsed.quickPad?.updatedAt || nowIso(),
+    },
+    firedAlertKeys: parsed.firedAlertKeys ?? [],
+    uiText: parsed.uiText ?? {},
+  };
+  migrateChats(merged);
+  try {
+    attachEventsToCourses(merged);
+  } catch (e) {
+    console.error("attachEventsToCourses", e);
+  }
+  try {
+    collapseGoogleSeries(merged);
+  } catch (e) {
+    console.error("collapseGoogleSeries", e);
+  }
+  try {
+    hydrateSyllabusWork(merged);
+  } catch (e) {
+    console.error("hydrateSyllabusWork", e);
+  }
+  try {
+    for (const course of merged.courses) {
+      if (course.dropped) continue;
+      course.name = salvageCourseName(course);
+      applyCourseSchedule(merged, course);
+    }
+  } catch (e) {
+    console.error("applyCourseSchedule", e);
+  }
+  try {
+    dedupeEvents(merged);
+  } catch (e) {
+    console.error("dedupeEvents", e);
+  }
+  try {
+    normalizePlannerEvents(merged);
+    dedupeEvents(merged);
+  } catch (e) {
+    console.error("normalizePlannerEvents", e);
+  }
+  const activityAt = merged.lastActiveAt;
+  const snap = merged.resumeStop;
+  merged.lastActiveAt = activityAt;
+  merged.resume = wasAway(activityAt) ? snap : undefined;
+  return merged;
+}
+
 export async function readState(userId: string): Promise<AppState> {
   const destRaw = await loadRawStore(userId);
   try {
+    let state: AppState;
     if (!destRaw) {
-      const state = emptyState();
-      await persistWriteJson(storeKey(userId), { ...state, resume: undefined });
-      return state;
-    }
-    let parsed: AppState;
-    try {
-      parsed = JSON.parse(destRaw) as AppState;
-    } catch (bad) {
-      console.error("readState: store is unreadable", userId, bad);
-      throw new Error("Could not read planner data.");
-    }
-    const base = emptyState();
-    const merged = {
-      ...base,
-      ...parsed,
-      settings: {
-        ...base.settings,
-        ...parsed.settings,
-        openaiKey: parsed.settings?.openaiKey ?? "",
-        deepseekKey: parsed.settings?.deepseekKey ?? "",
-        geminiKey: parsed.settings?.geminiKey ?? "",
-        notification: {
-          ...base.settings.notification,
-          ...parsed.settings?.notification,
-          digestDaily: parsed.settings?.notification?.digestDaily ?? true,
-          digestWeekly: parsed.settings?.notification?.digestWeekly ?? true,
-          digestDailyHour: parsed.settings?.notification?.digestDailyHour ?? 22,
-          digestDailyMinute: parsed.settings?.notification?.digestDailyMinute ?? 0,
-        },
-        google: { ...base.settings.google, ...parsed.settings?.google },
-        smtp: { ...base.settings.smtp, ...parsed.settings?.smtp },
-      },
-      courses: (parsed.courses ?? []).map((c) => ({ ...c, officeHours: c.officeHours || "" })),
-      events: (parsed.events ?? [])
-        .filter((e) => e && typeof e.start === "string" && e.start)
-        .map((e) => ({
-          ...e,
-          title: e.title ?? "",
-          details: e.details ?? "",
-          releasedAt: e.releasedAt ?? null,
-          googleAlerts: e.googleAlerts ?? false,
-          alerts: e.alerts ?? [],
-        })),
-      notes: parsed.notes ?? [],
-      messages: parsed.messages ?? [],
-      chats: parsed.chats ?? [],
-      activeChatId: parsed.activeChatId ?? null,
-      quickPad: {
-        body: parsed.quickPad?.body || "",
-        todos: Array.isArray(parsed.quickPad?.todos) ? parsed.quickPad.todos : [],
-        updatedAt: parsed.quickPad?.updatedAt || nowIso(),
-      },
-      firedAlertKeys: parsed.firedAlertKeys ?? [],
-      uiText: parsed.uiText ?? {},
-    };
-    migrateChats(merged);
-    try {
-      attachEventsToCourses(merged);
-    } catch (e) {
-      console.error("attachEventsToCourses", e);
-    }
-    try {
-      collapseGoogleSeries(merged);
-    } catch (e) {
-      console.error("collapseGoogleSeries", e);
-    }
-    try {
-      hydrateSyllabusWork(merged);
-    } catch (e) {
-      console.error("hydrateSyllabusWork", e);
-    }
-    try {
-      for (const course of merged.courses) {
-        if (course.dropped) continue;
-        course.name = salvageCourseName(course);
-        applyCourseSchedule(merged, course);
+      state = emptyState();
+    } else {
+      try {
+        state = hydrateState(JSON.parse(destRaw) as AppState);
+      } catch (bad) {
+        console.error("readState: store is unreadable", userId, bad);
+        throw new Error("Could not read planner data.");
       }
-    } catch (e) {
-      console.error("applyCourseSchedule", e);
     }
-    try {
-      dedupeEvents(merged);
-    } catch (e) {
-      console.error("dedupeEvents", e);
+    const email = emails.get(userId);
+    const seeded = await applyPlannerSeed(state, email);
+    if (seeded || !destRaw) {
+      await persistWriteJson(storeKey(userId), { ...state, resume: undefined });
     }
-    try {
-      normalizePlannerEvents(merged);
-      dedupeEvents(merged);
-    } catch (e) {
-      console.error("normalizePlannerEvents", e);
-    }
-    const activityAt = merged.lastActiveAt;
-    const snap = merged.resumeStop;
-    merged.lastActiveAt = activityAt;
-    merged.resume = wasAway(activityAt) ? snap : undefined;
-    return merged;
+    return destRaw && !seeded ? state : hydrateState(state);
   } catch (err) {
     console.error("readState", userId, err);
     throw err instanceof Error ? err : new Error("Could not read planner data.");
@@ -281,18 +295,29 @@ export async function updateState<T>(userId: string, fn: (state: AppState) => Pr
 
 export async function saveUpload(userId: string, file: File | Blob, filename: string) {
   const buf = Buffer.from(await file.arrayBuffer());
+  const safe = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   if (onVercel() || usesBlob()) {
-    return { dest: "", size: buf.length, filename: filename.replace(/[^a-zA-Z0-9._-]/g, "_"), buf };
+    await persistWrite(`users/${userId}/uploads/${safe}`, buf, file.type || "application/octet-stream");
+    return { dest: "", size: buf.length, filename: safe, buf };
   }
   await fs.mkdir(uploadDir(userId), { recursive: true });
-  const safe = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const dest = path.join(uploadDir(userId), safe);
   await fs.writeFile(dest, buf);
   return { dest, size: buf.length, filename: safe, buf };
 }
 
 export async function readUpload(userId: string, storedName: string) {
-  const dest = path.join(uploadDir(userId), path.basename(storedName));
+  const name = path.basename(storedName);
+  if (usesBlob()) {
+    const own = await persistRead(`users/${userId}/uploads/${name}`);
+    if (own) return own;
+  }
+  const email = emails.get(userId);
+  if (email && isOwnerPlannerEmail(email)) {
+    const owner = await readOwnerUpload(email, name);
+    if (owner) return owner;
+  }
+  const dest = path.join(uploadDir(userId), name);
   return fs.readFile(dest);
 }
 

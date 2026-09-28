@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { isAdminEmail } from "./admin";
 import { nid, nowIso } from "./ids";
 import { persistDelete, persistReadJson, persistWriteJson, usesBlob, onVercel } from "./persist";
+import { bindUserEmail } from "./store";
 import type { AppUser } from "./types";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -152,6 +153,7 @@ export async function loginOrLinkGoogle(profile: { email: string; name: string; 
 }
 
 export async function setSession(user: AppUser, opts?: { secure?: boolean }) {
+  bindUserEmail(user.id, user.email);
   const token = await new SignJWT({ sub: user.id, email: user.email, name: user.name })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -191,7 +193,9 @@ export async function getSessionUser(): Promise<AppUser | null> {
     const users = await loadUsers();
     const user = users.find((u) => u.id === payload.sub);
     if (!user || user.disabled) return null;
-    return publicUser(user);
+    const pub = publicUser(user);
+    bindUserEmail(pub.id, pub.email);
+    return pub;
   } catch {
     return null;
   }
