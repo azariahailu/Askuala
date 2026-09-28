@@ -119,7 +119,7 @@ export async function loginOrLinkGoogle(profile: { email: string; name: string; 
   const byGoogle = users.find((u) => profile.googleId && u.googleId === profile.googleId);
   if (byGoogle) {
     if (byGoogle.disabled) throw new Error("This account is disabled.");
-    return publicUser(byGoogle);
+    return { user: publicUser(byGoogle), created: false as const };
   }
   const byEmail = users.find((u) => u.email === email);
   if (byEmail?.disabled) throw new Error("This account is disabled.");
@@ -134,7 +134,7 @@ export async function loginOrLinkGoogle(profile: { email: string; name: string; 
     };
     users.push(user);
     await saveUsers(users);
-    return publicUser(user);
+    return { user: publicUser(user), created: true as const };
   }
   // A password account with this email is not auto-claimed: that would let someone
   // pre-register a victim's school address and inherit their calendar after they sign in with Google.
@@ -149,7 +149,7 @@ export async function loginOrLinkGoogle(profile: { email: string; name: string; 
     if (!byEmail.name) byEmail.name = profile.name;
     await saveUsers(users);
   }
-  return publicUser(byEmail);
+  return { user: publicUser(byEmail), created: false as const };
 }
 
 export async function setSession(user: AppUser, opts?: { secure?: boolean }) {
