@@ -1,0 +1,49 @@
+{
+  "name": "askuala-buddy",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 3000",
+    "app": "bash scripts/launch.sh",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.0",
+    "cloudflared": "^0.7.3",
+    "date-fns": "^4.4.0",
+    "docx": "^9.7.1",
+    "googleapis": "^180.0.0",
+    "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
+    "jose": "^6.2.12",
+    "katex": "^0.18.7",
+    "lucide-react": "^1.45.0",
+    "mammoth": "^1.12.3",
+    "nanoid": "^6.0.1",
+    "next": "16.3.5",
+    "nodemailer": "^10.0.9",
+    "openai": "^7.15.0",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark": "^15.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
