@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
+    "seed:push": "node scripts/push-owner-seed.mjs",
     "start": "next start -H 0.0.0.0 -p 3000",
     "app": "bash scripts/launch.sh",
     "lint": "eslint"

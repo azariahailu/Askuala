@@ -34,8 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
-# local student data
+# local student data — never GitHub
 /data
+/src/lib/seed/
+/seed-files/
 
 # editor / scratch (not the app)
 .cursor/

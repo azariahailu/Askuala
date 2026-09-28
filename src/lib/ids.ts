@@ -59,6 +59,7 @@ export function defaultSettings(): AppSettings {
       user: "",
       pass: "",
     },
+    plannerImported: false,
   };
 }
 
