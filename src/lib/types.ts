@@ -207,6 +207,7 @@ export type AppSettings = {
   notification: NotificationPrefs;
   google: GoogleAuth;
   smtp: SmtpConfig;
+  plannerImported?: boolean;
 };
 
 export type AppUser = {
