@@ -3,7 +3,7 @@ import { cookieSecureFromRequest, getSessionUser, loginOrLinkGoogle, setSession 
 import { decodeOAuthState, exchangeCode, oauthOrigin, requestOrigin, syncGoogle } from "@/lib/google";
 import { ensureAskualaDrive } from "@/lib/google-drive";
 import { updateState } from "@/lib/store";
-import { afterLogin } from "@/lib/login-mail";
+import { afterLogin, afterSignup } from "@/lib/login-mail";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
     if (intent.intent === "login" && !sessionUser) {
       const profile = await exchangeCode(code, undefined, oauth);
-      const user = await loginOrLinkGoogle(profile);
+      const { user, created } = await loginOrLinkGoogle(profile);
       await setSession(user, { secure: cookieSecureFromRequest(req) });
       await updateState(user.id, async (state) => {
         state.settings.google.accessToken = profile.tokens.access_token || "";
@@ -33,6 +33,7 @@ export async function GET(req: Request) {
         await ensureAskualaDrive(state).catch(() => undefined);
         await syncGoogle(state);
       });
+      if (created) void afterSignup(user, "google");
       void afterLogin(user);
       return NextResponse.redirect(new URL("/home?google=connected", origin));
     }

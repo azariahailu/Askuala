@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loginUser, registerUser, setSession, clearSession, getSessionUser, cookieSecureFromRequest } from "@/lib/auth";
-import { afterLogin } from "@/lib/login-mail";
+import { afterLogin, afterSignup } from "@/lib/login-mail";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     if (action === "register") {
       const user = await registerUser(body.name || "", body.email || "", body.password || "");
       await setSession(user, { secure: cookieSecureFromRequest(req) });
+      void afterSignup(user, "password");
       void afterLogin(user);
       return NextResponse.json({ user });
     }
