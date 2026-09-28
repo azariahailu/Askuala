@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookieSecureFromRequest, getSessionUser, loginOrLinkGoogle, setSession } from "@/lib/auth";
 import { profileFromAccessToken, syncGoogle } from "@/lib/google";
+import { afterLogin, afterSignup } from "@/lib/login-mail";
 import { updateState } from "@/lib/store";
 
 export async function POST(req: Request) {
@@ -30,9 +31,11 @@ export async function POST(req: Request) {
     }
 
     if ((intent === "login" || !sessionUser) && !sessionUser) {
-      const user = await loginOrLinkGoogle(profile);
+      const { user, created } = await loginOrLinkGoogle(profile);
       await setSession(user, { secure: cookieSecureFromRequest(req) });
       await save(user.id);
+      if (created) void afterSignup(user, "google");
+      void afterLogin(user);
       return NextResponse.json({ ok: true, next: "/calendar?google=connected" });
     }
 

@@ -104,6 +104,36 @@ export async function sendLoginEmail(to: string, name?: string) {
   return true;
 }
 
+/** New-account notice. Goes to the SMTP mailbox itself (buddy.askuala@gmail.com), not the student. */
+export async function sendAdminNewUserEmail(opts: {
+  name: string;
+  email: string;
+  id: string;
+  createdAt: string;
+  method: "password" | "google";
+}) {
+  const ready = await transporterFor();
+  if (!ready) return false;
+  const to = ready.smtp.user;
+  await ready.mailer.sendMail({
+    from: `"${APP_NAME}" <${to}>`,
+    to,
+    subject: `${APP_NAME}: new user ${opts.email}`,
+    text: [
+      `A new ${APP_NAME} account was created.`,
+      "",
+      `Name: ${opts.name || "—"}`,
+      `Email: ${opts.email}`,
+      `Signed up with: ${opts.method === "google" ? "Google" : "email + password"}`,
+      `Account id: ${opts.id}`,
+      `Created: ${opts.createdAt}`,
+      "",
+      "This mail was sent to the SMTP sender inbox.",
+    ].join("\n"),
+  });
+  return true;
+}
+
 function fmtWhen(iso: string) {
   return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
