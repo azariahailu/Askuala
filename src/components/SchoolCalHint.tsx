@@ -1,14 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { useBuddy } from "./BuddyProvider";
 
 export function SchoolCalHint() {
   const { data, postJson, refresh } = useBuddy();
-  if (!data || data.settings.schoolCalHintDone) return null;
+  const [hidden, setHidden] = useState(false);
+  if (!data || hidden || data.settings.schoolCalHintDone) return null;
+  if ((data.events?.length || 0) > 0) return null;
 
   async function dismissAfterSync() {
-    await postJson("/api/settings", { schoolCalHintDone: true }, "PATCH");
-    await refresh();
+    setHidden(true);
+    try {
+      await postJson("/api/settings", { schoolCalHintDone: true }, "PATCH");
+      await refresh();
+    } catch {
+      /* already hidden on this page */
+    }
   }
 
   return (
@@ -28,13 +36,11 @@ export function SchoolCalHint() {
         <li>Then click <strong>Connect Google</strong> / <strong>Sync Google Calendar</strong> on this page.</li>
       </ol>
       <p className="mt-2 text-muted">
-        This notice hides after you connect Google and complete a sync. If your school calendar is already on Google, sync once and it will go away.
+        This notice is only for a first empty calendar. If your school calendar is already on Google, connect and sync once.
       </p>
-      {data.settings.googleConnected && (
-        <button type="button" className="mt-3 text-gold-2 underline" onClick={() => void dismissAfterSync()}>
-          Already synced — hide this
-        </button>
-      )}
+      <button type="button" className="mt-3 text-gold-2 underline" onClick={() => void dismissAfterSync()}>
+        Already set up — hide this
+      </button>
     </section>
   );
 }

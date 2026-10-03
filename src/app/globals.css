@@ -114,7 +114,9 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
-  text-rendering: optimizeLegibility;
+  text-rendering: auto;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "clig" 0, "dlig" 0, "calt" 0;
   touch-action: manipulation;
 }
 
@@ -130,6 +132,10 @@ img,
 svg,
 video {
   max-width: 100%;
+}
+
+img:not([class*="h-"]):not([height]),
+video:not([class*="h-"]):not([height]) {
   height: auto;
 }
 
@@ -292,6 +298,48 @@ textarea {
   display: block;
   max-width: 100%;
   height: auto;
+}
+
+.tour-pointer {
+  position: absolute;
+  z-index: 5;
+  width: 14px;
+  height: 14px;
+  margin: -2px 0 0 -2px;
+  border-radius: 999px;
+  border: 2px solid #e4c56a;
+  background: rgb(201 162 39 / 0.35);
+  box-shadow: 0 0 0 4px rgb(201 162 39 / 0.15);
+  transition: left 0.7s ease, top 0.7s ease;
+  pointer-events: none;
+}
+
+.tour-pointer-light {
+  border-color: #8a5a00;
+  background: rgb(184 134 11 / 0.35);
+  box-shadow: 0 0 0 4px rgb(184 134 11 / 0.18);
+}
+
+.tour-click {
+  animation: tour-pulse 1.2s ease-out infinite;
+}
+
+@keyframes tour-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(201 162 39 / 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgb(201 162 39 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-pointer {
+    transition: none;
+  }
+  .tour-click {
+    animation: none;
+  }
 }
 
 @media print {

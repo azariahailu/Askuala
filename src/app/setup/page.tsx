@@ -19,7 +19,7 @@ function emptyOrigin() {
 export default function HostGoogleSetupPage() {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [publicUrl, setPublicUrl] = useState("");
+  const [publicUrl, setPublicUrl] = useState("https://askualastudy.vercel.app");
   const here = useSyncExternalStore(subscribeOrigin, clientOrigin, emptyOrigin);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -76,17 +76,21 @@ export default function HostGoogleSetupPage() {
         <section className="rounded-xl border border-line p-4 text-sm">
           <h2 className="font-medium">No paid domain</h2>
           <p className="mt-2 text-muted">
-            You do not need to buy a website. Each person can run {APP_NAME} on their own laptop (double-click the launcher in the project folder). Localhost in the list below is enough. Skip the public URL unless you later put it on a free host that gives you a <code className="text-gold-2">*.railway.app</code>-style address.
+            On Vercel the site is{" "}
+            <code className="text-gold-2">https://askualastudy.vercel.app</code>. Add that origin’s callback in Google Cloud. Localhost is only if you also run the app on this computer.
           </p>
         </section>
 
         <ol className="list-decimal space-y-2 pl-5 text-sm">
           <li>
-            Sign into{" "}
-            <a className="text-gold-2 underline" href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noreferrer">
-              Google Auth Platform → Clients
-            </a>{" "}
-            with any Google account you control (developer hat). Create a project named {APP_NAME} if asked.
+            In the top bar, pick the Cloud project that owns this app (not a random empty project).
+          </li>
+          <li>
+            Finish the consent screen first — Google greys out <strong>Add URI</strong> until this exists. Open{" "}
+            <a className="text-gold-2 underline" href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noreferrer">
+              Google Auth Platform
+            </a>
+            , click <strong>Get started</strong> (or Branding). User type <strong>External</strong>. App name {APP_NAME}. Support email = the Gmail you are signed into Cloud with. Developer contact = same Gmail. Skip homepage, privacy, terms, logo, and authorized domains (do not add <code>vercel.app</code> — you do not own it). Click through until it is saved. If it still says “configure your consent screen,” refresh the tab, then open Clients again.
           </li>
           <li>
             Enable{" "}
@@ -104,9 +108,15 @@ export default function HostGoogleSetupPage() {
             <a className="text-gold-2 underline" href="https://console.cloud.google.com/auth/audience" target="_blank" rel="noreferrer">
               Audience
             </a>
-            , either add every Gmail that will sign in as a <strong>test user</strong> (including yours), or set the app to <strong>In production</strong>. Testing mode blocks everyone who isn’t on that list (that’s the 403 you see). Production does not need Google’s full verification for a student app — people may see “Google hasn’t verified this app” and click Advanced → continue.
+            , either add every Gmail that will sign in as a <strong>test user</strong> (including yours), or set the app to <strong>In production</strong>. Testing mode blocks everyone who isn’t on that list. Production does not need Google’s full verification for a student app — people may see “Google hasn’t verified this app” and click Advanced → continue.
           </li>
-          <li>Create an OAuth client: type <strong>Web application</strong>, name {APP_NAME} (existing “Askuala Buddy” clients still work).</li>
+          <li>
+            Then{" "}
+            <a className="text-gold-2 underline" href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noreferrer">
+              Clients
+            </a>
+            : type <strong>Web application</strong>, name {APP_NAME}. Now Add URI works.
+          </li>
           <li>
             Authorized redirect URIs — add every URL below that you will actually use:
             <ul className="mt-1 list-disc pl-5 font-mono text-xs">

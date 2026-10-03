@@ -13,7 +13,7 @@ export function isGuideChatId(id: string | null | undefined) {
 export function guideManualBody() {
   return `# ${GUIDE_CHAT_TITLE}
 
-**Video tour** — open [the tour page](/tour) (also on the public homepage before login). The same walkthrough sits at the top of this thread.
+**Screen tour** — press Play on the homepage, on [the tour page](/tour), or at the top of this thread. It is a light-theme screen recording of everything Askuala does (sign-in through install). Not a separate YouTube file.
 
 Install ${APP_NAME} as an app: Safari → Share → Add to Home Screen, or Chrome → Install app. The ${APP_NAME} logo is the icon.
 
@@ -28,7 +28,7 @@ Your data is per login. Another student on the same app does not see your course
 ## Sign in and accounts
 
 - Create an account with email + password, or **Sign in with Google**.
-- Google sign-in also connects **your** Google Calendar and Drive (the account you pick on Google’s screen).
+- **Sign in with Google** uses your name and email only. Connect Calendar and Drive later in Settings.
 - Prefer your **college Google** if that is where class calendars and Drive live.
 - **Settings → Google Calendar and Drive**: Connect, or Switch if you need a different Google account. If Calendar already works but Drive folders are missing, Connect again and allow Drive.
 - Google Cloud client setup is only for whoever hosts the app (\`/setup\`). Classmates do not do that after it is saved on the server.
@@ -142,7 +142,7 @@ Rules that are already in the product:
 - **Office hours are omitted** from those digest emails.
 - Not one SMTP message per event.
 
-You still choose: send email on/off, daily time, Sunday on/off, extra browser popups when this tab is open. There is no extra inbox field. Mail always goes to **the address you logged in with**. Signing in also sends a short note to that address from **buddy.askuala@gmail.com**. SMTP is admin-only.
+You still choose: send email on/off, daily time, Sunday on/off, extra browser popups when this tab is open. Digests go to the address you logged in with.
 
 On the deployed site, mail can run from a daily Vercel job; locally, this computer must be up for the minute tick.
 

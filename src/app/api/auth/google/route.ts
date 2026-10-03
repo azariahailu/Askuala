@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { authUrl, googleConfigured, isPhoneTunnel, oauthOrigin, requestOrigin } from "@/lib/google";
+import { ensureGoogleAppLoaded } from "@/lib/google-app";
 import { getSessionUser } from "@/lib/auth";
 
 export async function GET(req: Request) {
+  await ensureGoogleAppLoaded();
   const origin = requestOrigin(req);
   if (isPhoneTunnel(req)) {
     return NextResponse.redirect(new URL("/login?google=phone", origin));

@@ -5,6 +5,7 @@ import { readGlobalSmtp } from "@/lib/mail-account";
 import { readState, toClient } from "@/lib/store";
 import { BuddyProvider } from "@/components/BuddyProvider";
 import { GuardShell } from "@/components/AppShell";
+import { blobSuspendedMessage, isBlobSuspended } from "@/lib/blob-status";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
@@ -20,10 +21,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   } catch (e) {
     console.error("AppLayout", e);
+    const blob = isBlobSuspended(e) || /file store \(Vercel Blob\) is paused/i.test(e instanceof Error ? e.message : "");
+    const message = blob ? blobSuspendedMessage() : e instanceof Error ? e.message : "Could not load your workspace.";
     return (
-      <BuddyProvider>
-        <GuardShell>{children}</GuardShell>
-      </BuddyProvider>
+      <div className="mx-auto max-w-lg space-y-3 p-10 text-sm">
+        <p className="font-medium">Askuala cannot load your planner right now.</p>
+        <p className="text-muted">{message}</p>
+      </div>
     );
   }
 }

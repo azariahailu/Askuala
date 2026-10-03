@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     if (!clientId.endsWith(".apps.googleusercontent.com") || clientSecret.length < 8) {
       return NextResponse.json({ error: "That doesn’t look like a Google Web client ID and secret." }, { status: 400 });
     }
-    writeGoogleApp(clientId, clientSecret);
+    await writeGoogleApp(clientId, clientSecret);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Could not save" }, { status: 400 });

@@ -1,38 +1,177 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { del, list, put } from "@vercel/blob";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { del, get, list, put } from "@vercel/blob";
+import { blobSuspendedMessage, isBlobSuspended } from "./blob-status";
 
 const ROOT = path.join(process.cwd(), "data");
-
-export function usesBlob() {
-  return Boolean((process.env.BLOB_READ_WRITE_TOKEN || "").trim());
-}
 
 export function onVercel() {
   return process.env.VERCEL === "1";
 }
 
+type R2Config = {
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+  endpoint: string;
+};
+
+function r2Config(): R2Config | null {
+  const accountId = (process.env.R2_ACCOUNT_ID || "").trim();
+  const accessKeyId = (process.env.R2_ACCESS_KEY_ID || "").trim();
+  const secretAccessKey = (process.env.R2_SECRET_ACCESS_KEY || "").trim();
+  const bucket = (process.env.R2_BUCKET || "").trim();
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) return null;
+  return {
+    accountId,
+    accessKeyId,
+    secretAccessKey,
+    bucket,
+    endpoint: (process.env.R2_ENDPOINT || "").trim() || `https://${accountId}.r2.cloudflarestorage.com`,
+  };
+}
+
+/** Cloudflare R2. Preferred over Vercel Blob when both are set. Local disk unless ASKUALA_USE_R2=1. */
+export function usesR2() {
+  if (!r2Config()) return false;
+  if (onVercel()) return true;
+  return process.env.ASKUALA_USE_R2 === "1";
+}
+
+/** Vercel Blob only when R2 is not configured. Local disk unless ASKUALA_USE_BLOB=1. */
+export function usesBlob() {
+  if (usesR2()) return false;
+  const token = (process.env.BLOB_READ_WRITE_TOKEN || "").trim();
+  if (!token) return false;
+  if (onVercel()) return true;
+  return process.env.ASKUALA_USE_BLOB === "1";
+}
+
+export function usesCloud() {
+  return usesR2() || usesBlob();
+}
+
 export function assertCloudReady() {
-  if (onVercel() && !usesBlob()) {
-    throw new Error("Vercel needs BLOB_READ_WRITE_TOKEN so student data is not stored on a laptop. Create a Blob store in the Vercel project and add the token.");
+  if (onVercel() && !usesCloud()) {
+    throw new Error(
+      "Vercel needs Cloudflare R2 (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET) or BLOB_READ_WRITE_TOKEN so student data is not stored on a laptop.",
+    );
   }
 }
 
-async function blobUrl(key: string) {
-  const { blobs } = await list({ prefix: key, limit: 20 });
-  return blobs.find((b) => b.pathname === key)?.url || "";
+let r2Client: S3Client | null = null;
+
+function r2() {
+  const cfg = r2Config();
+  if (!cfg) throw new Error("Cloudflare R2 is not configured.");
+  if (!r2Client) {
+    r2Client = new S3Client({
+      region: "auto",
+      endpoint: cfg.endpoint,
+      credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
+    });
+  }
+  return { client: r2Client, bucket: cfg.bucket };
+}
+
+function wrapBlob(err: unknown): never {
+  if (isBlobSuspended(err)) throw new Error(blobSuspendedMessage());
+  throw err instanceof Error ? err : new Error(String(err));
+}
+
+function isMissing(err: unknown) {
+  const any = err as { name?: string; $metadata?: { httpStatusCode?: number }; Code?: string };
+  const code = any?.name || any?.Code || "";
+  const status = any?.$metadata?.httpStatusCode;
+  const message = err instanceof Error ? err.message : "";
+  return status === 404 || /NoSuchKey|NotFound|not found|404/i.test(`${code} ${message}`);
+}
+
+async function bodyToBuffer(body: unknown): Promise<Buffer> {
+  if (!body) return Buffer.alloc(0);
+  if (Buffer.isBuffer(body)) return body;
+  if (body instanceof Uint8Array) return Buffer.from(body);
+  if (typeof (body as { transformToByteArray?: () => Promise<Uint8Array> }).transformToByteArray === "function") {
+    return Buffer.from(await (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray());
+  }
+  return Buffer.from(await new Response(body as BodyInit).arrayBuffer());
+}
+
+async function r2Read(key: string): Promise<Buffer | null> {
+  const { client, bucket } = r2();
+  try {
+    const out = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    return await bodyToBuffer(out.Body);
+  } catch (err) {
+    if (isMissing(err)) return null;
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+}
+
+async function r2Write(key: string, body: Buffer, contentType: string) {
+  const { client, bucket } = r2();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
+
+async function r2Delete(key: string) {
+  const { client, bucket } = r2();
+  try {
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  } catch (err) {
+    if (!isMissing(err)) throw err instanceof Error ? err : new Error(String(err));
+  }
+}
+
+async function r2List(prefix: string): Promise<string[]> {
+  const { client, bucket } = r2();
+  const names: string[] = [];
+  let token: string | undefined;
+  do {
+    const out = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        ContinuationToken: token,
+        MaxKeys: 1000,
+      }),
+    );
+    for (const obj of out.Contents || []) {
+      if (obj.Key) names.push(obj.Key);
+    }
+    token = out.IsTruncated ? out.NextContinuationToken : undefined;
+  } while (token);
+  return names;
 }
 
 export async function persistRead(key: string): Promise<Buffer | null> {
   assertCloudReady();
+  if (usesR2()) return r2Read(key);
   if (usesBlob()) {
-    const url = await blobUrl(key);
-    if (!url) return null;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
-    });
-    if (!res.ok) return null;
-    return Buffer.from(await res.arrayBuffer());
+    try {
+      const result = await get(key, { access: "private", useCache: false });
+      if (!result || result.statusCode !== 200 || !result.stream) return null;
+      return Buffer.from(await new Response(result.stream).arrayBuffer());
+    } catch (err) {
+      if (isBlobSuspended(err)) wrapBlob(err);
+      const message = err instanceof Error ? err.message : "";
+      if (/not found|404/i.test(message)) return null;
+      wrapBlob(err);
+    }
   }
   try {
     return await fs.readFile(path.join(ROOT, key));
@@ -43,28 +182,49 @@ export async function persistRead(key: string): Promise<Buffer | null> {
 
 export async function persistWrite(key: string, body: Buffer | string, contentType = "application/json") {
   assertCloudReady();
-  if (usesBlob()) {
-    await put(key, body, { access: "private", addRandomSuffix: false, allowOverwrite: true, contentType });
+  const buf = typeof body === "string" ? Buffer.from(body) : body;
+  if (usesR2()) {
+    await r2Write(key, buf, contentType);
     return;
+  }
+  if (usesBlob()) {
+    try {
+      await put(key, buf, { access: "private", addRandomSuffix: false, allowOverwrite: true, contentType });
+      return;
+    } catch (err) {
+      wrapBlob(err);
+    }
   }
   const dest = path.join(ROOT, key);
   await fs.mkdir(path.dirname(dest), { recursive: true });
-  await fs.writeFile(dest, body);
+  await fs.writeFile(dest, buf);
 }
 
 export async function persistDelete(key: string) {
+  if (usesR2()) {
+    await r2Delete(key);
+    return;
+  }
   if (usesBlob()) {
-    const url = await blobUrl(key);
-    if (url) await del(url);
+    try {
+      await del(key);
+    } catch (err) {
+      if (!isBlobSuspended(err) && !/not found|404/i.test(err instanceof Error ? err.message : "")) wrapBlob(err);
+    }
     return;
   }
   await fs.unlink(path.join(ROOT, key)).catch(() => undefined);
 }
 
 export async function persistList(prefix: string) {
+  if (usesR2()) return r2List(prefix);
   if (usesBlob()) {
-    const { blobs } = await list({ prefix, limit: 1000 });
-    return blobs.map((b) => b.pathname);
+    try {
+      const { blobs } = await list({ prefix, limit: 1000 });
+      return blobs.map((b) => b.pathname);
+    } catch (err) {
+      wrapBlob(err);
+    }
   }
   const dir = path.join(ROOT, prefix);
   try {

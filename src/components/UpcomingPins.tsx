@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { inNextHours, inferCourseId, upcomingMajors } from "@/lib/calendar-utils";
+import { happeningWithin, inferCourseId, upcomingMajors } from "@/lib/calendar-utils";
 import { TYPE_LABELS, type Course, type CourseEvent } from "@/lib/types";
 import { useBuddy } from "./BuddyProvider";
 import { useMounted } from "@/lib/use-mounted";
@@ -23,7 +23,7 @@ export function UpcomingPins({
     ? events.filter((e) => (inferCourseId(e, courses) || e.courseId) === courseId)
     : events;
   const urgent = mounted
-    ? scoped.filter((e) => !e.canceled && inNextHours(e.start, 48)).sort((a, b) => a.start.localeCompare(b.start))
+    ? scoped.filter((e) => !e.canceled && happeningWithin(e, 48)).sort((a, b) => a.start.localeCompare(b.start))
     : [];
   const majors = mounted ? upcomingMajors(scoped, 14, courses) : [];
 

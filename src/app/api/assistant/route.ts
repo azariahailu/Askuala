@@ -1,14 +1,67 @@
-import { fail, mutate } from "@/lib/api";
+import { after, NextResponse } from "next/server";
+import { fail } from "@/lib/api";
+import { requireUser } from "@/lib/auth";
 import { extractTextFromBuffer, extractTextFromPath } from "@/lib/extract-text";
 import { pushPlainUploadsToDrive } from "@/lib/google-drive";
-import { runAssistant, titleChatThread, titleFromMessage } from "@/lib/local-chat";
+import { runAssistant, titleFromMessage } from "@/lib/local-chat";
 import { nid, nowIso } from "@/lib/ids";
-import { activeChat, saveUpload } from "@/lib/store";
+import { activeChat, saveUpload, updateState } from "@/lib/store";
 import { GUIDE_CHAT_ID, isGuideChatId } from "@/lib/guide-chat";
-import type { Attachment } from "@/lib/types";
+import type { Attachment, AppState } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+async function finishReply(opts: {
+  userId: string;
+  message: string;
+  extractedText: string;
+  userMsgId: string;
+  attachments: Attachment[];
+  fileBufs: Record<string, Buffer>;
+}) {
+  await updateState(opts.userId, async (state: AppState) => {
+    const chat = activeChat(state);
+    const history = (chat?.messages || []).filter((m) => m.id !== opts.userMsgId);
+    let reply = "";
+    try {
+      const ran = await runAssistant({
+        state,
+        message: opts.message,
+        extractedText: opts.extractedText,
+        extra: opts.message,
+        history,
+      });
+      reply = ran.reply;
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Gemini failed";
+      reply = /denied access/i.test(err)
+        ? `Tried Gemini and Google blocked the key (${err.slice(0, 120)}). I did not fall back to DeepSeek.`
+        : `Gemini did not return text (${err.slice(0, 220)}). I did not fall back to DeepSeek.`;
+    }
+    if (!reply.trim()) {
+      reply = "Gemini sent an empty reply. Try once more — I did not fall back to DeepSeek.";
+    }
+    chat?.messages.push({
+      id: nid(),
+      role: "assistant",
+      content: reply,
+      attachments: [],
+      createdAt: nowIso(),
+    });
+    if (chat) {
+      chat.updatedAt = nowIso();
+      state.messages = chat.messages;
+    }
+    if (opts.attachments.length) {
+      try {
+        await pushPlainUploadsToDrive(state, opts.userId, undefined, opts.attachments, opts.fileBufs);
+      } catch {
+        /* chat still saved */
+      }
+    }
+  });
+}
 
 export async function POST(req: Request) {
   try {
@@ -16,7 +69,38 @@ export async function POST(req: Request) {
     const message = String(form.get("message") || "");
     const chatId = String(form.get("chatId") || "");
     const files = form.getAll("files").filter((f): f is File => f instanceof File);
-    return await mutate(async (state, userId) => {
+    const user = await requireUser();
+
+    const attachments: Attachment[] = [];
+    const fileBufs: Record<string, Buffer> = {};
+    let extractedText = "";
+    for (const file of files) {
+      const saved = await saveUpload(user.id, file, file.name);
+      attachments.push({
+        id: nid(),
+        filename: file.name,
+        mime: file.type,
+        size: saved.size,
+        path: saved.filename,
+        createdAt: nowIso(),
+      });
+      if (saved.buf) fileBufs[saved.filename] = saved.buf;
+      extractedText += `\n\n--- ${file.name} ---\n${
+        saved.dest
+          ? await extractTextFromPath(saved.dest, file.type, file.name)
+          : await extractTextFromBuffer(saved.buf || Buffer.alloc(0), file.type, file.name)
+      }`;
+    }
+
+    const userMsg = {
+      id: nid(),
+      role: "user" as const,
+      content: message || (files.length ? `(attached ${files.map((f) => f.name).join(", ")})` : ""),
+      attachments,
+      createdAt: nowIso(),
+    };
+
+    await updateState(user.id, async (state) => {
       if (chatId && state.chats.some((c) => c.id === chatId)) state.activeChatId = chatId;
       let chat = activeChat(state);
       if (!chat) {
@@ -32,69 +116,27 @@ export async function POST(req: Request) {
         state.chats = guide ? [guide, chat, ...rest] : [chat, ...rest];
         state.activeChatId = chat.id;
       }
-      const attachments: Attachment[] = [];
-      const fileBufs: Record<string, Buffer> = {};
-      let extractedText = "";
-      for (const file of files) {
-        const saved = await saveUpload(userId, file, file.name);
-        attachments.push({
-          id: nid(),
-          filename: file.name,
-          mime: file.type,
-          size: saved.size,
-          path: saved.filename,
-          createdAt: nowIso(),
-        });
-        if (saved.buf) fileBufs[saved.filename] = saved.buf;
-        extractedText += `\n\n--- ${file.name} ---\n${
-          saved.dest
-            ? await extractTextFromPath(saved.dest, file.type, file.name)
-            : await extractTextFromBuffer(saved.buf || Buffer.alloc(0), file.type, file.name)
-        }`;
-      }
-      const userMsg = {
-        id: nid(),
-        role: "user" as const,
-        content: message || (files.length ? `(attached ${files.map((f) => f.name).join(", ")})` : ""),
-        attachments,
-        createdAt: nowIso(),
-      };
       chat.messages.push(userMsg);
-      const { reply } = await runAssistant({
-        state,
-        message,
-        extractedText,
-        extra: message,
-        history: chat.messages.slice(0, -1),
-      });
-      chat.messages.push({
-        id: nid(),
-        role: "assistant",
-        content: reply,
-        attachments: [],
-        createdAt: nowIso(),
-      });
       const userTurns = chat.messages.filter((m) => m.role === "user").length;
-      const raw = titleFromMessage(userMsg.content);
-      if (!isGuideChatId(chat.id) && (userTurns === 1 || !chat.title || chat.title === "New chat" || chat.title === raw)) {
-        chat.title = await titleChatThread({
-          settings: state.settings,
-          message: userMsg.content,
-          reply,
-          files: files.map((f) => f.name),
-        });
+      if (!isGuideChatId(chat.id) && (userTurns === 1 || !chat.title || chat.title === "New chat")) {
+        chat.title = titleFromMessage(userMsg.content) || files[0]?.name || "Chat";
       }
       chat.updatedAt = nowIso();
       state.messages = chat.messages;
-      if (attachments.length) {
-        try {
-          await pushPlainUploadsToDrive(state, userId, undefined, attachments, fileBufs);
-        } catch {
-          /* chat still saved */
-        }
-      }
-      return { reply };
     });
+
+    after(() =>
+      finishReply({
+        userId: user.id,
+        message,
+        extractedText,
+        userMsgId: userMsg.id,
+        attachments,
+        fileBufs,
+      }).catch((err) => console.error("assistant after", err)),
+    );
+
+    return NextResponse.json({ ok: true, extra: { pending: true } });
   } catch (err) {
     return fail(err);
   }

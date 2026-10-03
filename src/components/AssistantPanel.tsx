@@ -38,12 +38,21 @@ export function AssistantPanel({
       form.set("message", text);
       if (activeId) form.set("chatId", activeId);
       for (const f of files) form.append("files", f);
+      const before = (data?.messages || []).map((m) => m.id);
       await postForm("/api/assistant", form);
       setText("");
       setFiles([]);
+      for (let i = 0; i < 20; i++) {
+        const next = await refresh();
+        const msgs = next?.messages || [];
+        const last = msgs[msgs.length - 1];
+        if (last?.role === "assistant" && !before.includes(last.id)) break;
+        await new Promise((r) => setTimeout(r, 2500));
+      }
       setTimeout(() => bottom.current?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Assistant could not reply");
+      await refresh();
     } finally {
       setBusy(false);
     }
@@ -52,7 +61,7 @@ export function AssistantPanel({
   const thread = (
     <>
       <div className={`flex-1 space-y-3 overflow-auto p-3 ${popup ? "min-h-0" : "p-4"}`}>
-        {activePinned && !popup && <TourVideo compact />}
+        {activePinned && !popup && <TourVideo compact variant="guide" />}
         <GeminiSetup />
         {(data?.messages || []).length === 0 && (
           <p className="text-sm text-muted">{ui("chat.empty")}</p>

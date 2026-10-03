@@ -95,6 +95,8 @@ export type CourseNote = {
   alerts: AlertRule[];
   transcript: string;
   summary: string;
+  /** Last study guide before a rebuild, so Keep-and-add mistakes can be undone. */
+  summaryPrevious?: string;
   audioPath: string | null;
   audioDriveUrl?: string;
   studyPdfDriveUrl?: string;
@@ -191,6 +193,7 @@ export type GoogleAuth = {
   driveUploadsId: string;
   driveOutputsId: string;
   schoolCalHintDone: boolean;
+  lastSyncedAt?: string;
 };
 
 export type SmtpConfig = {

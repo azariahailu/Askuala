@@ -50,6 +50,7 @@ fi
 
 echo ""
 echo "Askuala is running at $URL"
+echo "This Mac uses the local data/ folder (not paused Vercel Blob)."
 echo "On your phone (same Wi‑Fi), open:"
 if command -v ipconfig >/dev/null; then
   ipconfig getifaddr en0 2>/dev/null | awk -v p="$PORT" '{print "  http://"$1":"p}'
@@ -65,4 +66,13 @@ elif command -v xdg-open >/dev/null; then
   (sleep 2 && xdg-open "$URL") &
 fi
 
-exec npx next dev -H 0.0.0.0 -p "$PORT"
+ulimit -n 10240 2>/dev/null || true
+
+# Production server: no file watcher, so macOS does not hit EMFILE / ERR_CONNECTION_REFUSED.
+# `next start` needs a build. Rebuild if missing.
+if [ ! -f .next/BUILD_ID ]; then
+  echo "Building once (then serving)…"
+  npx next build
+fi
+
+exec npx next start -H 0.0.0.0 -p "$PORT"
