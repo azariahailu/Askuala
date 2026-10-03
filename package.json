@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
+    "local": "bash scripts/launch.sh",
     "build": "next build",
     "seed:push": "node scripts/push-owner-seed.mjs",
     "start": "next start -H 0.0.0.0 -p 3000",
@@ -11,6 +12,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1146.0",
     "@vercel/blob": "^2.8.0",
     "cloudflared": "^0.7.3",
     "date-fns": "^4.4.0",

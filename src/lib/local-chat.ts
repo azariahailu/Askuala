@@ -1,11 +1,13 @@
 import type { AppSettings, AppState, ChatMessage, Course, CourseEvent, CourseNote } from "./types";
+import { addDays, addWeeks } from "date-fns";
 import { applyExtraction } from "./apply-extraction";
 import { applyDegreeRoadmap, looksLikeDegreeRoadmap, purgeRoadmapJunk } from "./planned-courses";
 import { heuristicExtract, type Extraction } from "./heuristic";
 import { extractWithAI } from "./ai";
-import { attachEventsToCourses, inferCourseId, isPastEvent } from "./calendar-utils";
+import { attachEventsToCourses, expandEvents, inferCourseId } from "./calendar-utils";
 import { llmChat, llmMissingMessage, geminiApiKey } from "./llm";
 import { runGeminiAgent } from "./gemini-agent";
+import { refreshGoogleIfStale } from "./google";
 import { executeJsonActions, parseActionsFromReply, type PlannerAction } from "./assistant-actions";
 import { listUiLabels } from "./ui-copy";
 import { APP_NAME, ASSISTANT_NAME } from "./brand";
@@ -53,6 +55,7 @@ export async function runAssistant(opts: {
 }) {
   const { state, message, extractedText, extra, history } = opts;
   attachEventsToCourses(state);
+  await refreshGoogleIfStale(state);
 
   let applied: Course | null = null;
   const blob = `${extractedText} ${message} ${extra}`;
@@ -156,20 +159,23 @@ function appContext(state: AppState, message: string) {
   const q = message.toLowerCase();
   const active = state.courses.filter((c) => !c.dropped);
   const now = new Date();
-  const events = state.events.filter((e) => !e.canceled).sort((a, b) => a.start.localeCompare(b.start));
-  const upcoming = events.filter((e) => !isPastEvent(e));
+  const rangeStart = addDays(now, -1);
+  rangeStart.setHours(0, 0, 0, 0);
+  const rangeEnd = addWeeks(now, 12);
+  const events = expandEvents(state.events, rangeStart, rangeEnd);
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
-  const today = upcoming.filter((e) => {
+  const today = events.filter((e) => {
     const t = new Date(e.start).getTime();
     return t >= todayStart.getTime() && t < todayEnd.getTime();
   });
+  const upcoming = events.filter((e) => new Date(e.end || e.start).getTime() >= now.getTime());
 
   const lines: string[] = [
     `Now: ${now.toLocaleString()}`,
-    `Settings: Google=${state.settings.google.connectedEmail || "off"}; emailAlerts=${state.settings.notification.emailEnabled ? state.settings.notification.emailAddress || "on" : "off"}; dailyBrief=${state.settings.notification.digestDaily !== false ? `${state.settings.notification.digestDailyHour ?? 22}:${String(state.settings.notification.digestDailyMinute ?? 0).padStart(2, "0")}` : "off"}; sundayWeek11am=${state.settings.notification.digestWeekly !== false}; smtp=${state.settings.smtp.host || "unset"}`,
+    `Settings: Google=${state.settings.google.connectedEmail || "off"}; lastSync=${state.settings.google.lastSyncedAt || "never"}; emailAlerts=${state.settings.notification.emailEnabled ? state.settings.notification.emailAddress || "on" : "off"}; dailyBrief=${state.settings.notification.digestDaily !== false ? `${state.settings.notification.digestDailyHour ?? 22}:${String(state.settings.notification.digestDailyMinute ?? 0).padStart(2, "0")}` : "off"}; sundayWeek11am=${state.settings.notification.digestWeekly !== false}; smtp=${state.settings.smtp.host || "unset"}`,
     `Counts: ${active.length} courses, ${upcoming.length} upcoming events, ${state.notes.length} notes, ${state.chats?.length || 0} chats`,
     `UI labels: ${listUiLabels(state.uiText)
       .slice(0, 36)
@@ -198,7 +204,7 @@ function appContext(state: AppState, message: string) {
   lines.push("UPCOMING (from now, all remaining):");
   const rest = upcoming.filter((e) => !today.includes(e));
   if (!rest.length && !today.length) lines.push("  (none)");
-  for (const e of rest) lines.push(eventLine(state, e, 80));
+  for (const e of rest.slice(0, 180)) lines.push(eventLine(state, e, 80));
 
   if (state.notes.length) {
     lines.push("NOTES:");
@@ -233,10 +239,13 @@ function plannerFallback(state: AppState, message: string, applied: Course | nul
     state.courses.find(
       (c) => !c.dropped && (q.includes(c.code.toLowerCase()) || (c.name && q.includes(c.name.toLowerCase()))),
     ) || applied;
-  const upcoming = state.events
-    .filter((e) => !e.canceled && !isPastEvent(e) && (!focus || inferCourseId(e, state.courses) === focus.id))
-    .sort((a, b) => a.start.localeCompare(b.start))
-    .slice(0, 14);
+  const now = new Date();
+  const rangeStart = addDays(now, -1);
+  rangeStart.setHours(0, 0, 0, 0);
+  const upcoming = expandEvents(state.events, rangeStart, addWeeks(now, 6))
+    .filter((e) => !focus || inferCourseId(e, state.courses) === focus.id)
+    .filter((e) => new Date(e.end || e.start).getTime() >= now.getTime())
+    .slice(0, 20);
   const policies = (focus?.policies || []).map((p) => `**${p.title}**\n${p.body}`).join("\n\n");
   const head = focus
     ? `${focus.code} · ${focus.name}\n${focus.instructor || ""} · ${focus.meetingPattern || ""} @ ${focus.location || ""}\n`

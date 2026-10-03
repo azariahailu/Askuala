@@ -1,13 +1,42 @@
 import { fail, mutate } from "@/lib/api";
+import { extractTextFromBuffer } from "@/lib/extract-text";
 import { defaultAlerts, nid, nowIso } from "@/lib/ids";
 import { generateStudySummary } from "@/lib/note-summary";
 import { pushNoteUploadsToDrive, pushStudyPdfToDrive } from "@/lib/google-drive";
-import { saveUpload } from "@/lib/store";
+import { readUpload, saveUpload } from "@/lib/store";
 import { studyGuidePdf } from "@/lib/study-pdf";
 import type { Attachment, CourseNote, NoteKind } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+async function textFromUploads(files: { name: string; mime: string; buf?: Buffer }[]) {
+  const chunks: string[] = [];
+  for (const file of files) {
+    if (!file.buf?.length) continue;
+    try {
+      const text = (await extractTextFromBuffer(file.buf, file.mime, file.name)).trim();
+      if (text) chunks.push(`### ${file.name}\n${text.slice(0, 12000)}`);
+    } catch {
+      /* skip unreadable files */
+    }
+  }
+  return chunks.join("\n\n");
+}
+
+async function textFromNoteAttachments(userId: string, note: CourseNote) {
+  const chunks: string[] = [];
+  for (const att of note.attachments || []) {
+    try {
+      const buf = await readUpload(userId, att.path);
+      const text = (await extractTextFromBuffer(buf, att.mime, att.filename)).trim();
+      if (text) chunks.push(`### ${att.filename}\n${text.slice(0, 12000)}`);
+    } catch {
+      /* missing or binary */
+    }
+  }
+  return chunks.join("\n\n");
+}
 
 async function pushStudy(state: Parameters<typeof pushStudyPdfToDrive>[0]["state"], userId: string, note: CourseNote) {
   if (!note.summary.trim()) return;
@@ -62,6 +91,9 @@ export async function POST(req: Request) {
         audioBuf = saved.buf;
       }
       const course = state.courses.find((c) => c.id === courseId);
+      const extraMaterials = await textFromUploads(
+        attachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] })),
+      );
       let study = "";
       try {
         study = await generateStudySummary({
@@ -70,7 +102,8 @@ export async function POST(req: Request) {
           body,
           course,
           settings: state.settings,
-          existing: summary,
+          directions: summary,
+          extraMaterials,
         });
       } catch {
         study = "";
@@ -118,15 +151,27 @@ export async function PATCH(req: Request) {
     return await mutate(async (state, userId) => {
       const note = state.notes.find((n) => n.id === body.id);
       if (!note) throw new Error("Note not found");
-      if (body.regenerateSummary) {
+      if (body.restoreSummary) {
+        const prev = (note.summaryPrevious || "").trim();
+        if (!prev) throw new Error("No previous study guide is saved for this note.");
+        const current = note.summary;
+        note.summary = prev;
+        note.summaryPrevious = current;
+      } else if (body.regenerateSummary) {
         const course = state.courses.find((c) => c.id === note.courseId);
+        const extraMaterials = await textFromNoteAttachments(userId, note);
+        const prior = note.summary;
         note.summary = await generateStudySummary({
           transcript: note.transcript,
           title: note.title,
           body: note.body,
           course,
           settings: state.settings,
+          existing: note.summary,
+          directions: String(body.guideDirections || ""),
+          extraMaterials,
         });
+        if (prior.trim() && prior !== note.summary) note.summaryPrevious = prior;
         try {
           await pushStudy(state, userId, note);
         } catch {

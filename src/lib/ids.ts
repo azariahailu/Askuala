@@ -52,6 +52,7 @@ export function defaultSettings(): AppSettings {
       driveUploadsId: "",
       driveOutputsId: "",
       schoolCalHintDone: false,
+      lastSyncedAt: "",
     },
     smtp: {
       host: "",

@@ -123,13 +123,26 @@ export function eventEndAt(event: CourseEvent) {
 }
 
 export function isPastEvent(event: CourseEvent) {
+  if (event.canceled) return true;
+  if (event.allDay) return dayKey(new Date().toISOString()) > dayKey(event.start);
   return eventEndAt(event).getTime() < Date.now();
+}
+
+/** Still on the clock: starts in the next `hours`, or all-day today that has not ended. */
+export function happeningWithin(event: CourseEvent, hours: number) {
+  if (event.canceled) return false;
+  if (isPastEvent(event)) return false;
+  const start = new Date(event.start).getTime();
+  const now = Date.now();
+  if (start <= now + hours * 60 * 60 * 1000) return true;
+  return event.allDay && dayKey(event.start) === dayKey(new Date().toISOString());
 }
 
 export function inNextHours(iso: string, hours: number) {
   const t = new Date(iso).getTime();
   const now = Date.now();
-  return t >= now && t <= now + hours * 60 * 60 * 1000;
+  if (t >= now && t <= now + hours * 60 * 60 * 1000) return true;
+  return dayKey(iso) === dayKey(new Date().toISOString());
 }
 
 export function isWeeklyWork(event: CourseEvent) {
@@ -176,7 +189,7 @@ export function isMajorAssessment(event: CourseEvent) {
 
 export function upcomingMajors(events: CourseEvent[], days = 14, courses: { id: string; code: string }[] = []) {
   const list = events
-    .filter((e) => !e.canceled && isMajorAssessment(e) && inNextHours(e.start, days * 24))
+    .filter((e) => !e.canceled && isMajorAssessment(e) && happeningWithin(e, days * 24))
     .sort((a, b) => a.start.localeCompare(b.start));
   const seen = new Set<string>();
   const out: CourseEvent[] = [];

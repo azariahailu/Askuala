@@ -76,6 +76,14 @@ export default function SettingsPage() {
         <p className="text-sm text-muted">
           Briefs go to the email you logged in with. Connect Google on this device so Calendar and Drive stay on your account.
         </p>
+        {admin && (
+          <p className="mt-2 text-sm text-muted">
+            This is the site admin login ({ADMIN_EMAIL}). SMTP below is site-wide.{" "}
+            <a href="/admin" className="text-gold-2 underline">
+              Manage users
+            </a>
+          </p>
+        )}
       </div>
 
       <PhoneAccess />
@@ -156,7 +164,7 @@ export default function SettingsPage() {
         )}
         {data?.settings.driveReady && <p className="text-sm text-gold-2">Drive folders are ready. New uploads go there automatically. Voice files are named like 2026-09-23 · note title.</p>}
         <p className="text-sm text-muted">
-          Connect the Google account that holds your class calendars. On a phone or tablet, use Connect Google on this same site — Google sign-in works on the deployed URL.
+          On Unified calendar, use <strong>Connect / Sync Google</strong> (top right). That is the same action as Connect here. After Google allows Calendar, that button says Sync — pull latest from Google. Your Askuala events stay even if you have not synced yet.
         </p>
         {data?.settings.appGoogleReady && (
           <div className="flex flex-wrap gap-3">

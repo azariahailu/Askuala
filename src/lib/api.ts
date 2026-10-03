@@ -15,7 +15,8 @@ export function clientJson(user: Awaited<ReturnType<typeof requireUser>>, state:
 
 export function fail(err: unknown) {
   const message = err instanceof Error ? err.message : "Request failed";
-  const status = (err as { status?: number }).status === 401 ? 401 : 400;
+  const blob = /file store \(Vercel Blob\) is paused|store has been suspended/i.test(message);
+  const status = (err as { status?: number }).status === 401 ? 401 : blob ? 503 : 400;
   return NextResponse.json({ error: message }, { status });
 }
 

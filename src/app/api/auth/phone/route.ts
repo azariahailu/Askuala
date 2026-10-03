@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookieSecureFromRequest, getUserById, setSession } from "@/lib/auth";
+import { afterLoginPath } from "@/lib/admin";
 import { requestOrigin } from "@/lib/google";
 import { readPhonePass } from "@/lib/phone-link";
 
@@ -15,5 +16,5 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL("/login?google=phone", origin));
   }
   await setSession(user, { secure: cookieSecureFromRequest(req) });
-  return NextResponse.redirect(new URL("/home", origin));
+  return NextResponse.redirect(new URL(afterLoginPath(user.email), origin));
 }

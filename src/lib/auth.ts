@@ -2,10 +2,11 @@ import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { isAdminEmail } from "./admin";
+import { blobSuspendedMessage, isBlobSuspended } from "./blob-status";
 import { nid, nowIso } from "./ids";
-import { persistDelete, persistReadJson, persistWriteJson, usesBlob, onVercel } from "./persist";
+import { persistDelete, persistReadJson, persistWriteJson, usesCloud, onVercel } from "./persist";
 import { bindUserEmail } from "./store";
-import type { AppUser } from "./types";
+import type { AppState, AppUser } from "./types";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -48,7 +49,7 @@ async function secretKey() {
 export async function loadUsers(): Promise<StoredUser[]> {
   const fromCloud = await persistReadJson<StoredUser[]>(ACCOUNTS_KEY);
   if (fromCloud) return fromCloud;
-  if (!usesBlob()) {
+  if (!usesCloud()) {
     try {
       return JSON.parse(await fs.readFile(path.join(DATA_DIR, ACCOUNTS_KEY), "utf8")) as StoredUser[];
     } catch {
@@ -142,6 +143,12 @@ export async function loginOrLinkGoogle(profile: { email: string; name: string; 
     throw new Error("That email already has an Askuala password. Log in with email, then connect Google from Settings.");
   }
   if (byEmail.passwordHash && !byEmail.googleId) {
+    if (isAdminEmail(email) && profile.googleId) {
+      byEmail.googleId = profile.googleId;
+      if (profile.name) byEmail.name = profile.name;
+      await saveUsers(users);
+      return { user: publicUser(byEmail), created: false as const };
+    }
     throw new Error("That email already has an Askuala password. Log in with email, then connect Google from Settings.");
   }
   if (profile.googleId && byEmail.googleId !== profile.googleId) {
@@ -190,13 +197,31 @@ export async function getSessionUser(): Promise<AppUser | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, await secretKey());
-    const users = await loadUsers();
-    const user = users.find((u) => u.id === payload.sub);
-    if (!user || user.disabled) return null;
-    const pub = publicUser(user);
-    bindUserEmail(pub.id, pub.email);
-    return pub;
-  } catch {
+    try {
+      const users = await loadUsers();
+      const user = users.find((u) => u.id === payload.sub);
+      if (!user || user.disabled) return null;
+      const pub = publicUser(user);
+      bindUserEmail(pub.id, pub.email);
+      return pub;
+    } catch (err) {
+      if (isBlobSuspended(err)) {
+        const pub = {
+          id: String(payload.sub || ""),
+          email: String(payload.email || ""),
+          name: String(payload.name || ""),
+          createdAt: "",
+        };
+        if (!pub.id) return null;
+        bindUserEmail(pub.id, pub.email);
+        return pub;
+      }
+      throw err;
+    }
+  } catch (e) {
+    if (isBlobSuspended(e) || /file store \(Vercel Blob\) is paused/i.test(e instanceof Error ? e.message : "")) {
+      throw e instanceof Error ? e : new Error(blobSuspendedMessage());
+    }
     return null;
   }
 }
@@ -223,15 +248,30 @@ export async function requireAdmin() {
 
 export async function listPublicUsers() {
   const users = await loadUsers();
-  return users.map((u) => ({
-    id: u.id,
-    email: u.email,
-    name: u.name,
-    createdAt: u.createdAt,
-    google: Boolean(u.googleId),
-    admin: isAdminEmail(u.email),
-    disabled: Boolean(u.disabled),
-  }));
+  return Promise.all(
+    users.map(async (u) => {
+      const store = await persistReadJson<Pick<AppState, "courses" | "events" | "notes" | "lastActiveAt" | "settings">>(
+        `users/${u.id}/store.json`,
+      );
+      const g = store?.settings?.google;
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        createdAt: u.createdAt,
+        lastActiveAt: store?.lastActiveAt || "",
+        courses: store?.courses?.length || 0,
+        events: store?.events?.length || 0,
+        notes: store?.notes?.length || 0,
+        googleLogin: Boolean(u.googleId),
+        googleCalendar: Boolean(g?.refreshToken || g?.accessToken),
+        googleEmail: g?.connectedEmail || "",
+        gemini: Boolean((store?.settings?.geminiKey || "").trim()),
+        admin: isAdminEmail(u.email),
+        disabled: Boolean(u.disabled),
+      };
+    }),
+  );
 }
 
 export async function setUserDisabled(id: string, disabled: boolean) {

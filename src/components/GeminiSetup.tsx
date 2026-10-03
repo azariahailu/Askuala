@@ -29,26 +29,32 @@ export function GeminiSetup({ force = false }: { force?: boolean }) {
 
   return (
     <section className="rounded-xl border border-gold/40 bg-urgent p-4 text-sm">
-      <h2 className="font-semibold text-gold-2">Set up Gemini (your own key)</h2>
-      <p className="mt-1 text-muted">
-        Askuala does not share a class-wide Gemini quota. Each student uses a free Google AI Studio key on their own account. The host’s env key is not used for chat.
-      </p>
-      <ol className="mt-3 list-decimal space-y-2 pl-5">
-        <li>
-          Open{" "}
-          <a className="text-gold-2 underline" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
-            Google AI Studio → API keys
-          </a>{" "}
-          and sign in with the Google account you want billed/quota on (usually the same college Google).
-        </li>
-        <li>Accept the Gemini API terms if asked. Use the free tier unless you choose otherwise.</li>
-        <li>Click <strong>Create API key</strong>. If it asks for a Google Cloud project, create or pick one, then create the key.</li>
-        <li>Copy the whole key (starts with <code>AIza</code>). Do not email it or put it in a shared doc.</li>
-        <li>Paste it below (or in Settings) and Save. You can replace it later the same way.</li>
-      </ol>
-      <p className="mt-2 text-muted">
-        If Studio says the key is restricted, create an unrestricted key for Gemini. If a model is busy, send again — the app tries another Gemini model on <em>your</em> key.
-      </p>
+      <h2 className="font-semibold text-gold-2">{ready ? "Gemini key (saved)" : "Set up Gemini (your own key)"}</h2>
+      {ready ? (
+        <p className="mt-1 text-muted">This login already has a Gemini key. Paste a new one only if you want to replace it.</p>
+      ) : (
+        <>
+          <p className="mt-1 text-muted">
+            Askuala does not share a class-wide Gemini quota. Each student uses a free Google AI Studio key on their own account. The host’s env key is not used for chat.
+          </p>
+          <ol className="mt-3 list-decimal space-y-2 pl-5">
+            <li>
+              Open{" "}
+              <a className="text-gold-2 underline" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
+                Google AI Studio → API keys
+              </a>{" "}
+              and sign in with the Google account you want billed/quota on (usually the same college Google).
+            </li>
+            <li>Accept the Gemini API terms if asked. Use the free tier unless you choose otherwise.</li>
+            <li>Click <strong>Create API key</strong>. If it asks for a Google Cloud project, create or pick one, then create the key.</li>
+            <li>Copy the whole key (starts with <code>AIza</code>). Do not email it or put it in a shared doc.</li>
+            <li>Paste it below (or in Settings) and Save. You can replace it later the same way.</li>
+          </ol>
+          <p className="mt-2 text-muted">
+            If Studio says the key is restricted, create an unrestricted key for Gemini. If a model is busy, send again — the app tries another Gemini model on <em>your</em> key.
+          </p>
+        </>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         <input
           className="min-w-[12rem] flex-1 rounded-lg bg-input p-2"

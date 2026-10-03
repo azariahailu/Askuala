@@ -3,13 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientState } from "@/lib/types";
 import { fillUiText, firstName, UI_DEFAULTS } from "@/lib/ui-copy";
+import { readResponseJson } from "@/lib/read-json";
 
 type BuddyCtx = {
   data: ClientState | null;
   loading: boolean;
   error: string;
   ui: (key: string, vars?: Record<string, string>) => string;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<ClientState | null>;
   postForm: (url: string, form: FormData) => Promise<ClientState & { extra?: unknown; error?: string }>;
   postJson: (url: string, body: unknown, method?: string) => Promise<ClientState & { extra?: unknown; error?: string }>;
 };
@@ -28,20 +29,22 @@ export function BuddyProvider({ children, initial }: { children: React.ReactNode
       const res = await fetch("/api/state", { cache: "no-store", credentials: "include", signal: AbortSignal.timeout(20000) });
       if (res.status === 401) {
         window.location.href = "/login";
-        return;
+        return null;
       }
-      const json = await res.json();
+      const json = await readResponseJson<ClientState & { error?: string }>(res);
       if (!res.ok) {
         if (!dataRef.current) setError(json.error || "Could not load");
         setLoading(false);
-        return;
+        return null;
       }
       setData(json);
       setError("");
       setLoading(false);
+      return json;
     } catch (e) {
       if (!dataRef.current) setError(e instanceof Error ? e.message : "Could not load your workspace. Keep the computer on and refresh.");
       setLoading(false);
+      return null;
     }
   }, []);
 
@@ -82,7 +85,12 @@ export function BuddyProvider({ children, initial }: { children: React.ReactNode
     const mail = setInterval(async () => {
       const res = await fetch("/api/notifications/tick", { method: "POST" });
       if (!res.ok) return;
-      const json = await res.json();
+      let json: { extra?: { popups?: { title: string; body: string }[] } };
+      try {
+        json = await readResponseJson(res);
+      } catch {
+        return;
+      }
       const popups = json.extra?.popups as { title: string; body: string }[] | undefined;
       if (popups?.length && "Notification" in window) {
         if (Notification.permission === "default") await Notification.requestPermission();
@@ -107,10 +115,12 @@ export function BuddyProvider({ children, initial }: { children: React.ReactNode
 
   const postForm = useCallback(async (url: string, form: FormData) => {
     const res = await fetch(url, { method: "POST", body: form, credentials: "include" });
-    const json = await res.json();
+    const json = await readResponseJson<ClientState & { extra?: unknown; error?: string; ok?: boolean }>(res);
     if (!res.ok) throw new Error(json.error || "Request failed");
-    return apply(json);
-  }, []);
+    if (json.me) return apply(json);
+    await refresh();
+    return { ...(dataRef.current as ClientState), extra: json.extra };
+  }, [refresh]);
 
   const postJson = useCallback(async (url: string, body: unknown, method = "POST") => {
     const res = await fetch(url, {
@@ -119,7 +129,7 @@ export function BuddyProvider({ children, initial }: { children: React.ReactNode
       body: JSON.stringify(body),
       credentials: "include",
     });
-    const json = await res.json();
+    const json = await readResponseJson<ClientState & { extra?: unknown; error?: string }>(res);
     if (!res.ok) throw new Error(json.error || "Request failed");
     return apply(json);
   }, []);

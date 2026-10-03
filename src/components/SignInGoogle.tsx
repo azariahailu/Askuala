@@ -11,13 +11,20 @@ export function SignInGoogle({
   label?: string;
   className?: string;
 }) {
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(true);
   const text =
     label ||
     (intent === "switch" ? "Use a different Google account" : intent === "connect" ? "Connect Google (Calendar + Drive)" : "Sign in with Google");
 
   useEffect(() => {
-    setShow(!/trycloudflare\.com$/i.test(window.location.hostname));
+    if (/trycloudflare\.com$/i.test(window.location.hostname)) {
+      setShow(false);
+      return;
+    }
+    fetch("/api/auth/google-available")
+      .then((r) => r.json())
+      .then((j) => setShow(Boolean(j.google)))
+      .catch(() => setShow(true));
   }, []);
 
   if (!show) return null;

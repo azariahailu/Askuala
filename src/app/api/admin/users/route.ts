@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
 import { deleteUserAccount, listPublicUsers, requireAdmin, setUserDisabled } from "@/lib/auth";
+import { googleAppPeek } from "@/lib/google-app";
+import { smtpPeek } from "@/lib/mail-account";
 
 export async function GET() {
   try {
     await requireAdmin();
-    return NextResponse.json({ users: await listPublicUsers() });
+    const google = googleAppPeek();
+    const smtp = smtpPeek();
+    return NextResponse.json({
+      users: await listPublicUsers(),
+      site: {
+        googleReady: google.ready,
+        googleClientIdHint: google.clientIdHint,
+        smtpConfigured: smtp.configured,
+        smtpUser: smtp.user,
+      },
+    });
   } catch (err) {
     const status = (err as Error & { status?: number }).status || 401;
     return NextResponse.json({ error: err instanceof Error ? err.message : "Admin only" }, { status });
