@@ -128,16 +128,19 @@ export function makeOAuthClient(state?: AppState, origin?: string, redirectUri?:
   return client;
 }
 
+const LOGIN_SCOPES = ["openid", "email", "profile"];
+
 export function authUrl(opts: { state?: AppState; origin?: string; intent: OAuthIntent }) {
   const { clientId, clientSecret } = googleCreds(opts.state);
   if (!clientId || !clientSecret) return null;
+  const loginOnly = opts.intent.intent === "login";
   const client = new google.auth.OAuth2(clientId, clientSecret, `${appUrl(opts.origin)}/api/google/callback`);
   return client.generateAuthUrl({
-    access_type: "offline",
-    prompt: "select_account consent",
+    access_type: loginOnly ? "online" : "offline",
+    prompt: loginOnly ? "select_account" : "consent",
     include_granted_scopes: true,
     state: encodeOAuthState(opts.intent),
-    scope: SCOPES,
+    scope: loginOnly ? LOGIN_SCOPES : SCOPES,
     login_hint: opts.state?.settings.google.connectedEmail || undefined,
   });
 }
@@ -228,6 +231,10 @@ async function ensurePrimaryPhoneDefaults(_api: calendar_v3.Calendar, _minutes =
 function googleAuthBlob(err: unknown) {
   const e = err as { message?: string; response?: { data?: unknown } };
   return `${e.message || ""} ${JSON.stringify(e.response?.data || {})}`;
+}
+
+export function isInsufficientScope(err: unknown) {
+  return /insufficient(?: authentication)? scopes|ACCESS_TOKEN_SCOPE/i.test(googleAuthBlob(err));
 }
 
 export function isInvalidGrant(err: unknown) {
@@ -754,6 +761,17 @@ function needsOutboundPush(event: CourseEvent, now: Date) {
   return true;
 }
 
+export async function refreshGoogleIfStale(state: AppState, maxAgeMs = 90_000) {
+  if (!state.settings.google.refreshToken && !state.settings.google.accessToken) return;
+  const at = Date.parse(state.settings.google.lastSyncedAt || "");
+  if (Number.isFinite(at) && Date.now() - at < maxAgeMs) return;
+  try {
+    await syncGoogle(state);
+  } catch (err) {
+    console.error("refreshGoogleIfStale", err);
+  }
+}
+
 export async function syncGoogle(state: AppState) {
   const api = cal(state);
   if (!api) {
@@ -782,7 +800,7 @@ export async function syncGoogle(state: AppState) {
   try {
     discovered = await calendarsToSync(api, state);
   } catch (err) {
-    if (isInvalidGrant(err)) {
+    if (isInvalidGrant(err) || isInsufficientScope(err)) {
       clearGoogleSession(state);
       return { ok: false, reason: "auth" as const, reconnect: true, message: GOOGLE_RECONNECT_MSG };
     }
@@ -843,6 +861,7 @@ export async function syncGoogle(state: AppState) {
 
   const email = state.settings.google.connectedEmail || "Google Calendar";
   const restored = discovered.restored.length ? ` Course calendars: ${discovered.restored.join("; ")}.` : "";
+  state.settings.google.lastSyncedAt = new Date().toISOString();
   return {
     ok: true,
     reason: "synced" as const,

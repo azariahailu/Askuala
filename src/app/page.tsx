@@ -52,7 +52,7 @@ export default function MarketingPage() {
             Open planner
           </Link>
         </div>
-        <TourVideo />
+        <TourVideo variant="public" />
         <ul className="grid gap-3 sm:grid-cols-2">
           {[
             "Syllabus → calendar, including dated work and class readings",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookieSecureFromRequest, getSessionUser, loginOrLinkGoogle, setSession } from "@/lib/auth";
+import { afterLoginPath } from "@/lib/admin";
 import { profileFromAccessToken, syncGoogle } from "@/lib/google";
 import { afterLogin, afterSignup } from "@/lib/login-mail";
 import { updateState } from "@/lib/store";
@@ -20,29 +21,27 @@ export async function POST(req: Request) {
     const sessionUser = await getSessionUser();
     const intent = body.intent || (sessionUser ? "connect" : "login");
 
-    async function save(userId: string) {
+    async function saveCalendar(userId: string) {
       await updateState(userId, async (state) => {
         state.settings.google.accessToken = accessToken;
         state.settings.google.expiryDate = expiryDate;
         state.settings.google.connectedEmail = profile.email;
-        if (intent === "switch") state.settings.google.refreshToken = state.settings.google.refreshToken;
         await syncGoogle(state);
       });
     }
 
-    if ((intent === "login" || !sessionUser) && !sessionUser) {
+    if (intent === "login") {
       const { user, created } = await loginOrLinkGoogle(profile);
       await setSession(user, { secure: cookieSecureFromRequest(req) });
-      await save(user.id);
       if (created) void afterSignup(user, "google");
       void afterLogin(user);
-      return NextResponse.json({ ok: true, next: "/calendar?google=connected" });
+      return NextResponse.json({ ok: true, next: afterLoginPath(user.email) });
     }
 
     if (!sessionUser) {
       return NextResponse.json({ error: "Log in first, then connect Google Calendar." }, { status: 401 });
     }
-    await save(sessionUser.id);
+    await saveCalendar(sessionUser.id);
     return NextResponse.json({ ok: true, next: "/calendar?google=connected" });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Google connect failed";

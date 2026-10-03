@@ -179,31 +179,27 @@ const workingByKey = new Map<string, string>();
 const listedByKey = new Map<string, { at: number; ids: string[] }>();
 const busyUntil = new Map<string, number>();
 const SKIP_MODEL = /image|tts|audio|live|transcribe|embedding|computer-use|robotics|omni|veo|lyria/i;
-/** Preview 3.6+ flash is ~20 free calls/day. Pinning it makes the assistant look dead after a retry storm. */
-const TIGHT_FREE_TIER = /gemini-3\.[6-9]|gemini-3-flash/i;
+/** Older 3.6/3.7 previews had a tiny free cap. 3.8-flash is the model Google tells us to use. */
+const TIGHT_FREE_TIER = /gemini-3\.6|gemini-3\.7|gemini-3-flash-preview/i;
+const RETIRED_GEMINI = /gemini-2\.0|gemini-1\.5/i;
 
 /** Try these if ListModels is empty or incomplete. Skip 404s; keep going. */
 const ALL_FLASH = [
   "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
+  "gemini-flash-latest",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
-  "gemini-3-flash-preview",
-  "gemini-flash-latest",
   "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-latest",
   "gemini-pro-latest",
   "gemini-pro",
 ];
 
 export function rememberWorkingGemini(key: string, model: string) {
-  if (TIGHT_FREE_TIER.test(model.replace(/^models\//, ""))) return;
-  workingByKey.set(key, model);
+  const n = model.replace(/^models\//, "");
+  if (TIGHT_FREE_TIER.test(n) || RETIRED_GEMINI.test(n)) return;
+  workingByKey.set(key, n);
 }
 
 export function geminiApiKey(settings?: AppSettings) {
@@ -247,12 +243,12 @@ function notBusy(id: string) {
 
 function modelScore(id: string) {
   const n = id.replace(/^models\//, "");
-  // Newest 3.x flash often has a 20-request free cap. Prefer 2.5/2.0 so study guides do not burn that first.
-  if (/gemini-2\.5-flash(?!-lite)/i.test(n)) return 9000;
-  if (/gemini-flash-latest/i.test(n)) return 8900;
-  if (/gemini-2\.0-flash(?!-lite)/i.test(n)) return 8800;
-  if (/gemini-2\.5-flash-lite/i.test(n)) return 8700;
-  if (/gemini-2\.0-flash-lite/i.test(n)) return 8600;
+  if (RETIRED_GEMINI.test(n)) return -1;
+  if (/gemini-3\.8-flash/i.test(n)) return 10000;
+  if (/gemini-flash-latest/i.test(n)) return 9500;
+  if (/gemini-3\.5-flash(?!-lite)/i.test(n)) return 9200;
+  if (/gemini-2\.5-flash(?!-lite)/i.test(n)) return 8000;
+  if (/gemini-2\.5-flash-lite/i.test(n)) return 7800;
   const m = n.match(/(\d+)\.(\d+)/);
   const major = m ? Number(m[1]) : 0;
   const minor = m ? Number(m[2]) : 0;
@@ -265,53 +261,58 @@ function modelScore(id: string) {
 
 export async function geminiFlashModels(key: string) {
   const cached = listedByKey.get(key);
-  let ordered: string[] = [];
-  if (cached && Date.now() - cached.at < 10 * 60_000) {
-    const working = workingByKey.get(key);
-    ordered =
-      working && cached.ids.includes(working) && !TIGHT_FREE_TIER.test(working)
-        ? [working, ...cached.ids.filter((id) => id !== working)]
-        : cached.ids;
-  } else {
-    const fromApi: string[] = [];
-    try {
-      let pageToken = "";
-      for (let i = 0; i < 6; i++) {
-        const q = new URL("https://generativelanguage.googleapis.com/v1beta/models");
-        q.searchParams.set("key", key);
-        q.searchParams.set("pageSize", "200");
-        if (pageToken) q.searchParams.set("pageToken", pageToken);
-        const res = await fetch(q, { signal: AbortSignal.timeout(12000) });
-        const data = (await res.json()) as {
-          models?: { name?: string; supportedGenerationMethods?: string[] }[];
-          nextPageToken?: string;
-        };
-        if (!res.ok) break;
-        for (const m of data.models || []) {
-          const name = (m.name || "").replace(/^models\//, "");
-          if (!name) continue;
-          if (!(m.supportedGenerationMethods || []).includes("generateContent")) continue;
-          if (SKIP_MODEL.test(name)) continue;
-          if (!/gemini|gemma/i.test(name)) continue;
-          fromApi.push(name);
-        }
-        pageToken = data.nextPageToken || "";
-        if (!pageToken) break;
-      }
-    } catch {
-      /* still try ALL_FLASH */
-    }
-    const unique = [...new Set([...fromApi, ...ALL_FLASH])].sort((a, b) => modelScore(b) - modelScore(a)).slice(0, 16);
-    listedByKey.set(key, { at: Date.now(), ids: unique });
-    const working = workingByKey.get(key);
-    ordered =
-      working && unique.includes(working) && !TIGHT_FREE_TIER.test(working)
-        ? [working, ...unique.filter((id) => id !== working)]
-        : unique;
+  const working = workingByKey.get(key);
+  const fallback = [...ALL_FLASH].sort((a, b) => modelScore(b) - modelScore(a));
+  const ids = (cached?.ids?.length ? cached.ids : fallback).filter((id) => !RETIRED_GEMINI.test(id));
+  if (!cached || Date.now() - cached.at > 10 * 60_000) {
+    listedByKey.set(key, { at: Date.now(), ids });
+    void refreshGeminiModelList(key);
   }
+  const ordered =
+    working && ids.includes(working) && !TIGHT_FREE_TIER.test(working)
+      ? [working, ...ids.filter((id) => id !== working)]
+      : ids;
   const cool = ordered.filter(notBusy);
   const hot = ordered.filter((id) => !notBusy(id));
   return [...cool, ...hot];
+}
+
+async function refreshGeminiModelList(key: string) {
+  const fromApi: string[] = [];
+  try {
+    let pageToken = "";
+    for (let i = 0; i < 3; i++) {
+      const q = new URL("https://generativelanguage.googleapis.com/v1beta/models");
+      q.searchParams.set("key", key);
+      q.searchParams.set("pageSize", "200");
+      if (pageToken) q.searchParams.set("pageToken", pageToken);
+      const res = await fetch(q, { signal: AbortSignal.timeout(8000) });
+      const data = (await res.json()) as {
+        models?: { name?: string; supportedGenerationMethods?: string[] }[];
+        nextPageToken?: string;
+      };
+      if (!res.ok) break;
+      for (const m of data.models || []) {
+        const name = (m.name || "").replace(/^models\//, "");
+        if (!name) continue;
+        if (!(m.supportedGenerationMethods || []).includes("generateContent")) continue;
+        if (SKIP_MODEL.test(name)) continue;
+        if (RETIRED_GEMINI.test(name)) continue;
+        if (!/gemini|gemma/i.test(name)) continue;
+        fromApi.push(name);
+      }
+      pageToken = data.nextPageToken || "";
+      if (!pageToken) break;
+    }
+  } catch {
+    return;
+  }
+  if (!fromApi.length) return;
+  const unique = [...new Set([...fromApi, ...ALL_FLASH])]
+    .filter((id) => !RETIRED_GEMINI.test(id))
+    .sort((a, b) => modelScore(b) - modelScore(a))
+    .slice(0, 16);
+  listedByKey.set(key, { at: Date.now(), ids: unique });
 }
 
 type GContent = { role: string; parts: Record<string, unknown>[] };
@@ -330,8 +331,8 @@ export async function geminiGenerate(opts: {
   const listed = await geminiFlashModels(key);
   const cool = listed.filter((id) => notBusy(id) && !TIGHT_FREE_TIER.test(id));
   const tight = listed.filter((id) => notBusy(id) && TIGHT_FREE_TIER.test(id));
-  const models = (cool.length ? [...cool, ...tight] : listed.filter(notBusy).length ? listed.filter(notBusy) : listed).slice(0, 8);
-  const ms = opts.long ? 75000 : 12000;
+  const models = (cool.length ? [...cool, ...tight] : listed.filter(notBusy).length ? listed.filter(notBusy) : listed).slice(0, opts.long ? 4 : 6);
+  const ms = opts.long ? 45000 : 12000;
 
   for (const model of models) {
     try {
@@ -339,7 +340,7 @@ export async function geminiGenerate(opts: {
         contents: opts.contents,
         generationConfig: {
           temperature: opts.json ? 0.1 : 0.4,
-          maxOutputTokens: opts.json || opts.long ? 8192 : 4096,
+          maxOutputTokens: opts.json ? 8192 : opts.long ? 16384 : 4096,
           ...(opts.json ? { responseMimeType: "application/json" } : {}),
         },
       };
@@ -351,10 +352,18 @@ export async function geminiGenerate(opts: {
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(ms),
       });
-      const data = (await res.json()) as {
+      const raw = await res.text();
+      let data: {
         error?: { message?: string };
         candidates?: { content?: { parts?: Record<string, unknown>[] }; finishReason?: string }[];
-      };
+      } = {};
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        lastErr = `gemini ${res.status} (empty or invalid JSON)`;
+        keepErr = lastErr;
+        continue;
+      }
       if (!res.ok) {
         lastErr = data.error?.message || `gemini ${res.status}`;
         if (isGeminiHighDemand(lastErr) || res.status === 503) {
@@ -370,7 +379,11 @@ export async function geminiGenerate(opts: {
         if (res.status === 401 || res.status === 403) {
           throw new Error(friendlyGeminiError(lastErr, key));
         }
-        if (!/not found|no longer available/i.test(lastErr)) keepErr = lastErr;
+        if (/not found|no longer available/i.test(lastErr) || res.status === 404) {
+          markGeminiBusy(model, 168);
+          continue;
+        }
+        keepErr = lastErr;
         continue;
       }
       const parts = data.candidates?.[0]?.content?.parts || [];

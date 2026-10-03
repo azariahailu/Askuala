@@ -7,3 +7,7 @@ export function isAdminEmail(email?: string | null) {
   const extra = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
   return Boolean(extra) && n === extra;
 }
+
+export function afterLoginPath(email?: string | null) {
+  return isAdminEmail(email) ? "/admin" : "/home";
+}

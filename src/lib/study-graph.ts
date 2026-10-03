@@ -10,7 +10,7 @@ export type StudyGraphSpec = {
   read: string;
 };
 
-const GRAPH_LANG = /^(graph|econ-graph|econ|xygraph|figure)$/i;
+const GRAPH_LANG = /^(graph|econ-graph|econ|xygraph|figure|gnuplot)$/i;
 const PALETTE = ["#8a5a00", "#1f6f6a", "#6b3fa0", "#9a3412", "#1d4ed8", "#166534"];
 
 export function isStudyGraphLang(lang: string) {
@@ -18,9 +18,13 @@ export function isStudyGraphLang(lang: string) {
 }
 
 export function parseStudyGraph(lang: string, raw: string): StudyGraphSpec | null {
-  if (!isStudyGraphLang(lang)) return null;
   const text = (raw || "").trim();
   if (!text) return null;
+  if (looksLikeGnuplot(lang, text)) {
+    const gnu = parseGnuplotGraph(text);
+    if (gnu) return gnu;
+  }
+  if (!isStudyGraphLang(lang) && !looksLikeGnuplot(lang, text)) return null;
   const fromJson = parseJsonGraph(text);
   if (fromJson) return fromJson;
   return parseLineGraph(text);
@@ -94,6 +98,77 @@ function pointFromUnknown(v: unknown): GraphPoint | null {
     return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
   }
   return null;
+}
+
+function looksLikeGnuplot(lang: string, text: string) {
+  if (/gnuplot/i.test((lang || "").replace(/^language-/, ""))) return true;
+  return /^\s*lang\s*:\s*gnuplot/im.test(text) || /^\s*set\s+(terminal|title|xlabel|ylabel|xrange)\b/im.test(text) || /^\s*plot\s+/im.test(text);
+}
+
+function gnuplotQuoted(text: string, key: string) {
+  const m = text.match(new RegExp(`set\\s+${key}\\s+["']([^"']+)["']`, "i"));
+  return m?.[1]?.trim() || "";
+}
+
+function gnuplotRange(text: string, key: string): [number, number] | null {
+  const m = text.match(new RegExp(`set\\s+${key}\\s*\\[\\s*([^\\]:]+)\\s*:\\s*([^\\]]+)\\]`, "i"));
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  return Number.isFinite(a) && Number.isFinite(b) ? [a, b] : null;
+}
+
+function evalLinearExpr(expr: string, x: number) {
+  const js = expr
+    .replace(/\s+/g, "")
+    .replace(/\bx\b/gi, `(${x})`);
+  if (!/^[0-9.+*/()-]+$/.test(js)) return null;
+  try {
+    const v = Function(`"use strict"; return (${js});`)();
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseGnuplotGraph(text: string): StudyGraphSpec | null {
+  const xrange = gnuplotRange(text, "xrange") || [0, 10];
+  const title = gnuplotQuoted(text, "title") || "Graph";
+  const xLabel = gnuplotQuoted(text, "xlabel") || "Quantity";
+  const yLabel = gnuplotQuoted(text, "ylabel") || "Price";
+  const fns = new Map<string, string>();
+  for (const line of text.split(/\n/)) {
+    const m = line.trim().match(/^([A-Za-z]\w*)\s*\(\s*[xX]\s*\)\s*=\s*(.+)$/);
+    if (m) fns.set(m[1], m[2].trim());
+  }
+  const plot = text.replace(/\\\s*\n/g, " ").match(/plot\s+([\s\S]+)/i)?.[1] || "";
+  const titles = new Map<string, string>();
+  const plotRe = /([A-Za-z]\w*)\s*\(\s*[xX]\s*\)\s*(?:title\s+['"]([^'"]+)['"])?/gi;
+  let pm: RegExpExecArray | null;
+  while ((pm = plotRe.exec(plot))) titles.set(pm[1], pm[2] || pm[1]);
+  const names = titles.size ? [...titles.keys()] : [...fns.keys()];
+  const xs = [xrange[0], (xrange[0] + xrange[1]) / 2, xrange[1]];
+  const curves: GraphCurve[] = [];
+  for (const name of names) {
+    const expr = fns.get(name);
+    if (!expr) continue;
+    const points = xs
+      .map((x) => {
+        const y = evalLinearExpr(expr, x);
+        return y == null ? null : { x, y };
+      })
+      .filter((p): p is GraphPoint => Boolean(p));
+    if (points.length < 2) continue;
+    const label = titles.get(name) || name;
+    curves.push({
+      id: name,
+      label,
+      points: [points[0], points[points.length - 1]],
+      dash: /′|'|shifted|tax/i.test(label),
+    });
+  }
+  if (!curves.length) return null;
+  return { title, xLabel, yLabel, curves, eq: [], read: "" };
 }
 
 function parseLineGraph(text: string): StudyGraphSpec | null {

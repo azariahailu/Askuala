@@ -10,7 +10,7 @@ import { assistantProvider } from "./llm";
 import { ensureGuideChat } from "./guide-chat";
 import { isAdminEmail } from "./admin";
 import { applyPlannerSeed, isOwnerPlannerEmail, readOwnerUpload } from "./planner-seed";
-import { persistList, persistRead, persistReadJson, persistWrite, persistWriteJson, onVercel, usesBlob } from "./persist";
+import { persistList, persistRead, persistReadJson, persistWrite, persistWriteJson, onVercel, usesCloud } from "./persist";
 import type { AppState, AppUser, ClientState, PublicSettings } from "./types";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -21,6 +21,13 @@ const emails = new Map<string, string>();
 
 export function bindUserEmail(userId: string, email: string) {
   emails.set(userId, email.trim().toLowerCase());
+}
+
+async function emailForUser(userId: string) {
+  const bound = emails.get(userId);
+  if (bound) return bound;
+  const users = await persistReadJson<{ id: string; email: string }[]>("users.json");
+  return users?.find((u) => u.id === userId)?.email || "";
 }
 
 function assertUserId(userId: string) {
@@ -47,7 +54,7 @@ function storePath(userId: string) {
 async function loadRawStore(userId: string): Promise<string | null> {
   const cloud = await persistReadJson<AppState>(storeKey(userId));
   if (cloud) return JSON.stringify(cloud);
-  if (usesBlob() || onVercel()) return null;
+  if (usesCloud() || onVercel()) return null;
   try {
     return await fs.readFile(storePath(userId), "utf8");
   } catch {
@@ -161,12 +168,12 @@ export async function readState(userId: string): Promise<AppState> {
         throw new Error("Could not read planner data.");
       }
     }
-    const email = emails.get(userId);
+    const email = await emailForUser(userId);
     const seeded = await applyPlannerSeed(state, email);
     if (seeded || !destRaw) {
       await persistWriteJson(storeKey(userId), { ...state, resume: undefined });
     }
-    return destRaw && !seeded ? state : hydrateState(state);
+    return seeded ? state : destRaw ? state : hydrateState(state);
   } catch (err) {
     console.error("readState", userId, err);
     throw err instanceof Error ? err : new Error("Could not read planner data.");
@@ -179,7 +186,7 @@ export async function listUserIds() {
     const m = key.match(/^users\/([^/]+)\/store\.json$/);
     if (m) names.add(m[1]);
   }
-  if (!usesBlob()) {
+  if (!usesCloud()) {
     try {
       const dirs = await fs.readdir(path.join(DATA_DIR, "users"));
       for (const name of dirs) {
@@ -267,7 +274,7 @@ export async function writeState(userId: string, state: AppState) {
   }
   const persist = { ...state, resume: undefined };
   await persistWriteJson(storeKey(userId), persist);
-  if (!usesBlob() && !onVercel()) {
+  if (!usesCloud() && !onVercel()) {
     await fs.mkdir(userDir(userId), { recursive: true });
     await fs.writeFile(dest, JSON.stringify(persist));
   }
@@ -296,7 +303,7 @@ export async function updateState<T>(userId: string, fn: (state: AppState) => Pr
 export async function saveUpload(userId: string, file: File | Blob, filename: string) {
   const buf = Buffer.from(await file.arrayBuffer());
   const safe = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  if (onVercel() || usesBlob()) {
+  if (onVercel() || usesCloud()) {
     await persistWrite(`users/${userId}/uploads/${safe}`, buf, file.type || "application/octet-stream");
     return { dest: "", size: buf.length, filename: safe, buf };
   }
@@ -308,11 +315,11 @@ export async function saveUpload(userId: string, file: File | Blob, filename: st
 
 export async function readUpload(userId: string, storedName: string) {
   const name = path.basename(storedName);
-  if (usesBlob()) {
+  if (usesCloud()) {
     const own = await persistRead(`users/${userId}/uploads/${name}`);
     if (own) return own;
   }
-  const email = emails.get(userId);
+  const email = await emailForUser(userId);
   if (email && isOwnerPlannerEmail(email)) {
     const owner = await readOwnerUpload(email, name);
     if (owner) return owner;
@@ -330,11 +337,7 @@ export function toClient(user: AppUser, state: AppState): ClientState {
   const inbox = user.email;
   const settings: PublicSettings = {
     notification: { ...state.settings.notification, emailAddress: inbox, lastLoginMailAt: undefined },
-    googleConnected: Boolean(
-      state.settings.google.refreshToken ||
-        (state.settings.google.accessToken &&
-          (!state.settings.google.expiryDate || state.settings.google.expiryDate > Date.now() + 30_000)),
-    ),
+    googleConnected: Boolean(state.settings.google.refreshToken || state.settings.google.accessToken),
     googleEmail: state.settings.google.connectedEmail,
     driveReady: Boolean(state.settings.google.driveOk),
     appGoogleReady: googleAppReady(),
@@ -351,7 +354,6 @@ export function toClient(user: AppUser, state: AppState): ClientState {
     me: user,
     courses: state.courses.map((c) => ({
       ...c,
-      syllabusText: "",
       extraContext: c.extraContext || "",
     })),
     events: state.events,

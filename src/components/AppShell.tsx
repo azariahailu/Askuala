@@ -31,7 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
   const path = usePathname();
   const [desktopOpen, setDesktopOpen] = useState(true);
-  const [yearsOpen, setYearsOpen] = useState<Record<number, boolean>>({ 1: true });
+  const [yearsOpen, setYearsOpen] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true });
   const [termsOpen, setTermsOpen] = useState<Record<string, boolean>>({});
   const [chatOpen, setChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setPortalOk(true);
     if (localStorage.getItem("askuala-sidebar") === "0") setDesktopOpen(false);
     try {
-      const years = localStorage.getItem("askuala-years-open");
+      const years = localStorage.getItem("askuala-years-open-v2");
       if (years) setYearsOpen(JSON.parse(years) as Record<number, boolean>);
       const terms = localStorage.getItem("askuala-terms-open-v2");
       if (terms) setTermsOpen(JSON.parse(terms) as Record<string, boolean>);
@@ -85,6 +85,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const nav = (wide: boolean, onGo?: () => void) => (
     <>
       <Nav href="/home" icon={<LayoutDashboard size={18} />} label={ui("nav.home")} open={wide} active={path === "/home"} onClick={onGo} />
+      {Boolean(data?.settings.isAdmin) && (
+        <Nav href="/admin" icon={<Shield size={18} />} label="Admin" open={wide} active={path.startsWith("/admin")} onClick={onGo} />
+      )}
       <Nav
         href="/calendar"
         icon={<CalendarDays size={18} />}
@@ -120,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               setYearsOpen((s) => {
                 const next = { ...s, [year]: !s[year] };
                 try {
-                  localStorage.setItem("askuala-years-open", JSON.stringify(next));
+                  localStorage.setItem("askuala-years-open-v2", JSON.stringify(next));
                 } catch {
                   /* ignore */
                 }
@@ -194,24 +197,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       ))}
       <Nav href="/settings" icon={<Settings size={18} />} label={ui("nav.settings")} open={wide} active={path.startsWith("/settings")} onClick={onGo} />
-      {Boolean(data?.settings.isAdmin) && (
-        <Nav href="/admin" icon={<Shield size={18} />} label="Admin" open={wide} active={path.startsWith("/admin")} onClick={onGo} />
+      {wide && data?.me?.email && (
+        <p className="mt-2 truncate px-2 text-[11px] text-muted" title={data.me.email}>
+          {data.me.email}
+          {data.settings.isAdmin ? " · admin" : ""}
+        </p>
       )}
     </>
   );
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex h-dvh overflow-hidden">
       <aside
-        className={`sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-sidebar lg:flex ${
+        className={`hidden h-full shrink-0 flex-col border-r border-line bg-sidebar lg:flex ${
           desktopOpen ? "w-64" : "w-[72px]"
         }`}
       >
-        <div className="flex h-14 items-center gap-2 px-3">
+        <div className="flex h-14 shrink-0 items-center gap-2 px-3">
           <img src="/icon.png" alt="" className="h-8 w-8 rounded-md" />
           {desktopOpen && <span className="brand text-[1.05rem] font-semibold text-gold-2">{APP_NAME}</span>}
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 text-sm">{nav(desktopOpen)}</nav>
+        <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 text-sm">{nav(desktopOpen)}</nav>
         <button
           type="button"
           onClick={toggleDesktop}
@@ -222,8 +228,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </button>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="relative z-20 flex min-h-14 items-center justify-between gap-2 border-b border-line bg-canvas px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-3 lg:sticky lg:top-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="relative z-20 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-line bg-canvas px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-3">
           <div className="flex min-w-0 items-center gap-1">
             <button
               type="button"
@@ -278,6 +284,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link href="/home" className={`flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm ${path === "/home" ? "text-gold-2" : ""}`}>
                 {ui("nav.home")}
               </Link>
+              {Boolean(data?.settings.isAdmin) && (
+                <Link href="/admin" className={`flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm ${path.startsWith("/admin") ? "text-gold-2" : ""}`}>
+                  Admin
+                </Link>
+              )}
               <Link href="/calendar" className={`flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm ${path.startsWith("/calendar") ? "text-gold-2" : ""}`}>
                 Cal
               </Link>
@@ -308,7 +319,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
-        <main className="relative z-0 min-w-0 flex-1 p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">{children}</main>
+        <main className="relative z-0 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">{children}</main>
         {chatOpen && path !== "/assistant" && (
           <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-surface sm:inset-auto sm:bottom-3 sm:right-3 sm:h-[min(34rem,calc(100dvh-5.5rem))] sm:w-[min(26rem,calc(100vw-1.5rem))] sm:rounded-2xl sm:border sm:border-gold/40 sm:shadow-2xl">
             <ChatSafe onClose={() => setChatOpen(false)}>

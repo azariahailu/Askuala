@@ -3,7 +3,7 @@
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isBefore, isSameDay, isSameMonth, startOfDay, startOfMonth, startOfWeek } from "date-fns";
 import { Eye, EyeOff, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { collapseWeeklyByDay, eventInCalendarLens, expandEvents, inferCourseId, isPastEvent, isWeeklyWork, type CalendarLens } from "@/lib/calendar-utils";
+import { collapseWeeklyByDay, eventInCalendarLens, expandEvents, inferCourseId, isPastEvent, isWeeklyWork, dayKey, type CalendarLens } from "@/lib/calendar-utils";
 import { chipStyle, NON_COURSE_COLOR } from "@/lib/course-colors";
 import { TYPE_LABELS, type Course, type CourseEvent, type EventType } from "@/lib/types";
 import { EventModal } from "./EventModal";
@@ -125,7 +125,7 @@ export function CalendarBoard({ courseId }: { courseId?: string }) {
   const list = useMemo(() => {
     if (!mounted) return [];
     const now = new Date();
-    const upcoming = applyFilters(expandEvents(data?.events || [], now, addDays(now, 21))).filter((e) => !isPastEvent(e));
+    const upcoming = applyFilters(expandEvents(data?.events || [], addDays(now, -1), addDays(now, 21))).filter((e) => !isPastEvent(e));
     return [...upcoming].sort((a, b) => {
       if (sort === "due") return a.start.localeCompare(b.start);
       if (sort === "type") return a.type.localeCompare(b.type) || a.start.localeCompare(b.start);
@@ -199,9 +199,9 @@ export function CalendarBoard({ courseId }: { courseId?: string }) {
           <button onClick={() => setEditing("new")} className="flex items-center gap-1 rounded-lg bg-gold px-3 py-2 text-sm text-on-gold">
             <Plus size={16} /> {ui("cal.add")}
           </button>
-          {googleOn && (
+          {googleReady && (
             <button onClick={syncCal} className="rounded-lg border border-gold/50 px-3 py-2 text-sm text-gold-2">
-              Sync Google Calendar
+              {googleOn ? "Sync Google Calendar" : "Connect / Sync Google"}
             </button>
           )}
         </div>
@@ -324,7 +324,7 @@ export function CalendarBoard({ courseId }: { courseId?: string }) {
         {days.map((day) => {
           const pastDay = mounted && isBefore(day, startOfDay(new Date()));
           const today = mounted && isSameDay(day, new Date());
-          const items = visible.filter((e) => isSameDay(new Date(e.start), day));
+          const items = visible.filter((e) => dayKey(e.start) === dayKey(day.toISOString()));
           const shown = items.slice(0, 3);
           const more = items.length - shown.length;
           return (
@@ -352,7 +352,7 @@ export function CalendarBoard({ courseId }: { courseId?: string }) {
                     style={chipStyle(colorFor(courses, e), resolved)}
                     title={e.title}
                   >
-                    {format(new Date(e.start), "h:mma")} {e.title}
+                    {e.allDay ? e.title : `${format(new Date(e.start), "h:mma")} ${e.title}`}
                   </span>
                 ))}
                 {more > 0 && <span className="px-1 text-[11px] text-gold-2">+{more} more</span>}
@@ -386,7 +386,7 @@ export function CalendarBoard({ courseId }: { courseId?: string }) {
               ) : (
               list.map((e) => (
                 <tr key={e.id} className="border-t border-line">
-                  <td className="p-2 whitespace-nowrap">{format(new Date(e.start), "MMM d, h:mm a")}</td>
+                  <td className="p-2 whitespace-nowrap">{e.allDay ? format(new Date(e.start), "MMM d") + " (all day)" : format(new Date(e.start), "MMM d, h:mm a")}</td>
                   <td className="p-2">
                     <button className="rounded px-1.5 py-0.5 text-left font-medium hover:opacity-90" style={chipStyle(colorFor(courses, e), resolved)} onClick={() => setEditing(e)}>
                       {e.title}

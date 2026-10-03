@@ -27,11 +27,30 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{ui("home.welcome")}</h1>
           <p className="text-sm text-muted sm:text-base">{ui("home.tagline")}</p>
+          {data && (
+            <p className="mt-1 text-xs text-muted">
+              {data.courses.length} courses · {data.events.length} calendar items · {data.notes.length} notes
+              {!data.settings.googleConnected ? " · Connect Google in Settings to sync Calendar and Drive again" : ""}
+            </p>
+          )}
         </div>
         <button onClick={() => setOpen(true)} className="flex items-center gap-2 rounded-lg bg-gold px-4 py-2 text-on-gold">
           <Plus size={16} /> {ui("home.addCourse")}
         </button>
       </div>
+
+      {data?.settings.isAdmin && (
+        <section className="rounded-2xl border border-gold/40 bg-urgent p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gold-2">Site admin</h2>
+          <p className="mt-1 text-sm text-muted">
+            You are logged in as {data.me.email}. User accounts, disable/delete, Google client, and SMTP live here — not on
+            student Gmail logins.
+          </p>
+          <Link href="/admin" className="mt-2 inline-block text-sm text-gold-2 underline">
+            Open user management
+          </Link>
+        </section>
+      )}
 
       {mounted && data?.resume && isLongAway(data.lastActiveAt) && data.resume.lines.length > 0 && (
         <section className="rounded-2xl border border-gold/40 bg-urgent p-4">

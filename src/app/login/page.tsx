@@ -22,6 +22,7 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
+  const [blobDown, setBlobDown] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -32,7 +33,14 @@ function LoginForm() {
     if (g === "phone") {
       setErr("This temporary phone tunnel cannot use Google sign-in. Open the deployed Askuala URL (or http://127.0.0.1:3000 on this computer) and sign in with Google there.");
     }
+    if (g === "blob") setErr("");
     if (g === "error") setErr(params.get("message") || "Google sign-in failed.");
+    void fetch("/api/blob-status")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j && j.ok === false && j.error) setBlobDown(String(j.error));
+      })
+      .catch(() => undefined);
   }, [params]);
 
   async function submit(e: React.FormEvent) {
@@ -47,7 +55,7 @@ function LoginForm() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not continue");
-      router.push("/home");
+      router.push(json.next || "/home");
       router.refresh();
     } catch (error) {
       setErr(error instanceof Error ? error.message : "Failed");
@@ -70,8 +78,30 @@ function LoginForm() {
           </div>
         </div>
         <p className="mb-4 text-sm text-muted">
-          Use this same site on a phone, tablet, or computer. Prefer your <strong>college Google</strong> if that’s where class calendars live. After login, Askuala emails <strong>this same address</strong> (from buddy.askuala@gmail.com). You never enter a second inbox. Add this site as an app so the Askuala logo is your home-screen icon.
+          Use this same site on a phone, tablet, or computer. Prefer your <strong>college Google</strong> if that’s where class calendars live.
         </p>
+        {blobDown && (
+          <div className="mb-4 rounded-xl border border-red-400/40 bg-urgent p-3 text-sm">
+            <p className="font-medium text-red-400">Cloud accounts are on paused Vercel Blob</p>
+            <p className="mt-1 text-muted">
+              Email + password is not a separate login. User records live in the same file store as Google sign-in. Until Blob unpauses (around 10/29), use this Mac at{" "}
+              <a className="text-gold-2 underline" href="http://127.0.0.1:3000/login">
+                http://127.0.0.1:3000/login
+              </a>
+              .
+            </p>
+            <p className="mt-1 text-muted">{blobDown}</p>
+            <p className="mt-2">
+              <a className="text-gold-2 underline" href="https://vercel.com/ha-ge-ez/~/settings/billing" target="_blank" rel="noreferrer">
+                Upgrade Ha Ge'ez to Pro
+              </a>
+              {" · "}
+              <a className="text-gold-2 underline" href="https://vercel.com/ha-ge-ez/~/stores/blob/store_ie8xwB75zlcyHtla" target="_blank" rel="noreferrer">
+                Blob store
+              </a>
+            </p>
+          </div>
+        )}
         <details className="mb-4 rounded-lg border border-line bg-input p-3 text-sm text-muted">
           <summary className="cursor-pointer text-gold-2">College Google blocked sign-in?</summary>
           <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -81,12 +111,12 @@ function LoginForm() {
             <li>
               Some campuses <strong>block unverified apps</strong> in Workspace. Try Advanced → Continue (if shown), or create an Askuala login with email and connect Google from Settings, or ask IT to allow this client ID.
             </li>
-            <li>You can always use email + password on this page; Google Calendar/Drive can be connected later.</li>
+            <li>You can use email + password if you signed up that way. Google-only accounts stay on Google.</li>
           </ul>
         </details>
         <SignInGoogle
           intent="login"
-          className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-input py-3 font-medium hover:bg-hover"
+          className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-input py-3 font-medium hover:bg-hover disabled:opacity-50"
         />
         <div className="mb-4 flex items-center gap-2 text-xs text-muted">
           <span className="h-px flex-1 bg-line" />

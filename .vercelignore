@@ -1,0 +1,11 @@
+# Local planner + recordings — never upload to Vercel
+/data
+/src/lib/seed
+/seed-files
+/.next
+/node_modules
+/.tmp-docx
+/.cursor
+/Askuala Buddy.app
+*.app
+tsconfig.tsbuildinfo

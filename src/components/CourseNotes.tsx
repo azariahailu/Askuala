@@ -274,9 +274,14 @@ export function CourseNotes({ courseId }: { courseId: string }) {
             <p className="mt-2 text-xs text-muted">
               {recording
                 ? "Recording — keeps going for up to 2 hours until you stop. Transcript autosaves in this browser. A study summary is generated when you save."
-                : "Transcript autosaves in this browser while you type or record. Study summary is written from the transcript when you save."}
+                : "Transcript autosaves in this browser while you type or record. Study summary is written from the transcript, your notes, PDF/Word/text attachments, and any directions below."}
             </p>
-            <textarea className="min-h-16 w-full bg-input p-2 text-sm" value={summary} onChange={(e) => commit({ summary: e.target.value })} placeholder="Optional notes for the summary…" />
+            <textarea
+              className="min-h-16 w-full bg-input p-2 text-sm"
+              value={summary}
+              onChange={(e) => commit({ summary: e.target.value })}
+              placeholder="Directions for the study guide: extra topics to include, parts to change, or “keep all of this and add…”"
+            />
           </div>
         )}
         {kind === "reminder" && (
@@ -314,6 +319,7 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           Attachments
           <input type="file" multiple className="mt-1 block" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
         </label>
+        <p className="mt-1 text-xs text-muted">PDF, Word, and text files are read into the study guide. Video files are stored only — use Record + transcribe (or paste a transcript) for lecture video.</p>
         {err && <p className="mt-2 text-sm text-red-400">{err}</p>}
         <button onClick={save} className="mt-3 rounded-lg bg-gold px-3 py-2 text-on-gold">
           Save
@@ -350,11 +356,20 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           note={openNote}
           courseLabel={`${data?.courses.find((c) => c.id === courseId)?.code || ""} ${data?.courses.find((c) => c.id === courseId)?.name || ""}`.trim()}
           onClose={() => setOpenNote(null)}
-          onRegenerate={async () => {
-            const json = await postJson("/api/notes", { id: openNote.id, regenerateSummary: true }, "PATCH");
+          onRegenerate={async (guideDirections) => {
+            const json = await postJson("/api/notes", { id: openNote.id, regenerateSummary: true, guideDirections }, "PATCH");
             const next = json.notes?.find((n) => n.id === openNote.id);
             if (next) setOpenNote(next);
           }}
+          onRestore={
+            openNote.summaryPrevious
+              ? async () => {
+                  const json = await postJson("/api/notes", { id: openNote.id, restoreSummary: true }, "PATCH");
+                  const next = json.notes?.find((n) => n.id === openNote.id);
+                  if (next) setOpenNote(next);
+                }
+              : undefined
+          }
         />
       )}
     </div>
@@ -397,14 +412,17 @@ function StudyWindow({
   courseLabel,
   onClose,
   onRegenerate,
+  onRestore,
 }: {
   note: CourseNote;
   courseLabel: string;
   onClose: () => void;
-  onRegenerate: () => Promise<void>;
+  onRegenerate: (guideDirections: string) => Promise<void>;
+  onRestore?: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [guideDirections, setGuideDirections] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
   const dateLabel = note.catalogDate || note.createdAt.slice(0, 10);
   const canExport = Boolean(note.summary);
@@ -474,13 +492,32 @@ function StudyWindow({
               <Download size={14} /> Word
             </button>
             <button
+              type="button"
+              className="rounded-lg px-3 py-1 text-sm text-gold-2 disabled:opacity-40"
+              disabled={busy || !onRestore}
+              onClick={async () => {
+                if (!onRestore) return;
+                setBusy(true);
+                setErr("");
+                try {
+                  await onRestore();
+                } catch (e) {
+                  setErr(e instanceof Error ? e.message : "Could not restore the previous study guide");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Restore previous
+            </button>
+            <button
               className="rounded-lg px-3 py-1 text-sm text-gold-2"
               disabled={busy}
               onClick={async () => {
                 setBusy(true);
                 setErr("");
                 try {
-                  await onRegenerate();
+                  await onRegenerate(guideDirections);
                 } catch (e) {
                   setErr(e instanceof Error ? e.message : "Could not rebuild the study guide");
                 } finally {
@@ -499,6 +536,12 @@ function StudyWindow({
         <div className="grid min-h-0 flex-1 gap-6 overflow-auto p-6 md:grid-cols-5">
           <section className="md:col-span-3">
             <h3 className="mb-2 text-sm font-medium text-gold-2">Study summary</h3>
+            <textarea
+              className="mb-3 min-h-16 w-full bg-input p-2 text-sm"
+              value={guideDirections}
+              onChange={(e) => setGuideDirections(e.target.value)}
+              placeholder="When you rebuild: extra topics, “change the elasticity section…”, or “keep all of this and add…”"
+            />
             {note.summary ? (
               <div ref={bodyRef} className="text-[15px] leading-relaxed [&_p]:mb-2 [&_strong]:text-base">
                 <ChatMarkdown text={note.summary} />

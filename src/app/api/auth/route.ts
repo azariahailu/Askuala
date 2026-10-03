@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { loginUser, registerUser, setSession, clearSession, getSessionUser, cookieSecureFromRequest } from "@/lib/auth";
+import { afterLoginPath } from "@/lib/admin";
 import { afterLogin, afterSignup } from "@/lib/login-mail";
 
 export async function GET() {
@@ -16,13 +17,13 @@ export async function POST(req: Request) {
       await setSession(user, { secure: cookieSecureFromRequest(req) });
       void afterSignup(user, "password");
       void afterLogin(user);
-      return NextResponse.json({ user });
+      return NextResponse.json({ user, next: afterLoginPath(user.email) });
     }
     if (action === "login") {
       const user = await loginUser(body.email || "", body.password || "");
       await setSession(user, { secure: cookieSecureFromRequest(req) });
       void afterLogin(user);
-      return NextResponse.json({ user });
+      return NextResponse.json({ user, next: afterLoginPath(user.email) });
     }
     if (action === "logout") {
       await clearSession();
