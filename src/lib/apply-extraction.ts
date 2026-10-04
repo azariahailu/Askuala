@@ -166,7 +166,7 @@ export function applyExtraction(
   return course;
 }
 
-/** Re-read every course syllabus so papers, drafts, readings, and psets land on the weekly board — not only problem sets. */
+/** Re-read every course syllabus so papers, drafts, readings, and psets land on the weekly board: not only problem sets. */
 export function hydrateSyllabusWork(state: AppState) {
   for (const course of state.courses) {
     if (course.dropped) continue;

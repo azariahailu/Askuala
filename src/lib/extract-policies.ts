@@ -12,7 +12,7 @@ const TOPICS: Topic[] = [
 function clean(s: string) {
   return s
     .replace(/\s+/g, " ")
-    .replace(/^[\d.•\-–o]+\s*/i, "")
+    .replace(/^[\d.•\-o]+\s*/i, "")
     .trim();
 }
 

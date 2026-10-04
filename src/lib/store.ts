@@ -99,7 +99,11 @@ function hydrateState(parsed: AppState): AppState {
         googleAlerts: e.googleAlerts ?? false,
         alerts: e.alerts ?? [],
       })),
-    notes: parsed.notes ?? [],
+    notes: (parsed.notes ?? []).map((n) =>
+      n.studyPdfFmt === 2
+        ? n
+        : { ...n, studyPdfPath: undefined, studyPdfDriveUrl: undefined, studyPdfFmt: undefined },
+    ),
     messages: parsed.messages ?? [],
     chats: parsed.chats ?? [],
     activeChatId: parsed.activeChatId ?? null,
@@ -233,42 +237,42 @@ function plannerWeight(state: { courses?: unknown[]; events?: unknown[]; notes?:
   return (state.courses?.length || 0) + (state.events?.length || 0) + (state.notes?.length || 0) + (state.chats?.length || 0);
 }
 
-export async function writeState(userId: string, state: AppState) {
+export async function writeState(userId: string, state: AppState, opts?: { light?: boolean }) {
   migrateChats(state);
-  try {
-    attachEventsToCourses(state);
-  } catch (e) {
-    console.error("write attachEventsToCourses", e);
-  }
-  try {
-    collapseGoogleSeries(state);
-  } catch (e) {
-    console.error("write collapseGoogleSeries", e);
-  }
-  try {
-    normalizePlannerEvents(state);
-    dedupeEvents(state);
-  } catch (e) {
-    console.error("write normalizePlannerEvents", e);
-  }
-  const dest = storePath(userId);
-  let raw = "";
-  try {
-    raw = (await loadRawStore(userId)) || "";
-  } catch {
-    /* first write */
-  }
-  if (raw) {
-    let prev: { courses?: unknown[]; events?: unknown[]; notes?: unknown[]; chats?: unknown[] } | null = null;
+  if (!opts?.light) {
     try {
-      prev = JSON.parse(raw);
-    } catch {
-      prev = null;
+      attachEventsToCourses(state);
+    } catch (e) {
+      console.error("write attachEventsToCourses", e);
     }
-    // A store we cannot parse is still the student's data: keep a copy and never replace it with an empty planner.
-    if (!prev || (plannerWeight(prev) > 0 && plannerWeight(state) === 0)) {
-      if (plannerWeight(state) === 0) {
-        throw new Error("Refused to overwrite your saved planner with an empty one. Your data is untouched.");
+    try {
+      collapseGoogleSeries(state);
+    } catch (e) {
+      console.error("write collapseGoogleSeries", e);
+    }
+    try {
+      normalizePlannerEvents(state);
+      dedupeEvents(state);
+    } catch (e) {
+      console.error("write normalizePlannerEvents", e);
+    }
+    let raw = "";
+    try {
+      raw = (await loadRawStore(userId)) || "";
+    } catch {
+      /* first write */
+    }
+    if (raw) {
+      let prev: { courses?: unknown[]; events?: unknown[]; notes?: unknown[]; chats?: unknown[] } | null = null;
+      try {
+        prev = JSON.parse(raw);
+      } catch {
+        prev = null;
+      }
+      if (!prev || (plannerWeight(prev) > 0 && plannerWeight(state) === 0)) {
+        if (plannerWeight(state) === 0) {
+          throw new Error("Refused to overwrite your saved planner with an empty one. Your data is untouched.");
+        }
       }
     }
   }
@@ -276,18 +280,18 @@ export async function writeState(userId: string, state: AppState) {
   await persistWriteJson(storeKey(userId), persist);
   if (!usesCloud() && !onVercel()) {
     await fs.mkdir(userDir(userId), { recursive: true });
-    await fs.writeFile(dest, JSON.stringify(persist));
+    await fs.writeFile(storePath(userId), JSON.stringify(persist));
   }
 }
 
-export async function updateState<T>(userId: string, fn: (state: AppState) => Promise<T> | T): Promise<T> {
+export async function updateState<T>(userId: string, fn: (state: AppState) => Promise<T> | T, opts?: { light?: boolean }): Promise<T> {
   let result!: T;
   const prev = queues.get(userId) ?? Promise.resolve();
   const run = prev.then(async () => {
     const state = await readState(userId);
     result = await fn(state);
     if (result && typeof result === "object" && (result as { skipPersist?: boolean }).skipPersist) return;
-    await writeState(userId, state);
+    await writeState(userId, state, opts);
   });
   queues.set(
     userId,

@@ -104,7 +104,7 @@ function absorb(keep: CourseEvent, drop: CourseEvent) {
   }
 }
 
-/** One pass that keeps dated, named work and drops repeating generic copies — every course. */
+/** One pass that keeps dated, named work and drops repeating generic copies: every course. */
 export function normalizePlannerEvents(state: AppState) {
   const courses = state.courses || [];
   for (const event of state.events) {

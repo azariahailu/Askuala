@@ -4,7 +4,7 @@ import { defaultSettings, emptyState } from "./ids";
 import { persistRead, persistReadJson, usesCloud } from "./persist";
 import type { AppState } from "./types";
 
-/** Snapshot is stored in private Blob / this Mac’s gitignored folders — never in git. */
+/** Snapshot is stored in private Blob / this Mac’s gitignored folders: never in git. */
 const OWNER_EMAILS = new Set(["azariahailusdk@gmail.com", "azariahsd@gmail.com"]);
 
 export function isOwnerPlannerEmail(email?: string | null) {

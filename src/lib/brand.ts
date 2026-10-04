@@ -1,4 +1,4 @@
-/** Product vs assistant — keep these distinct so labels never collide. */
+/** Product vs assistant: keep these distinct so labels never collide. */
 export const APP_NAME = "Askuala";
 export const ASSISTANT_NAME = "Askuala Buddy";
 /** Google Calendar titles: "Askuala · CODE name". Old "Askuala Buddy ·" titles still match. */

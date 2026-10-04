@@ -7,12 +7,14 @@ import { useBuddy } from "./BuddyProvider";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { nanoid } from "nanoid";
 import { buildStudyDocx, studyFileSlug } from "@/lib/study-docx";
-import { downloadBlob, printStudyGuide, studyGuideHtml } from "@/lib/study-print";
+import { captureStudyPrintPdf, downloadBlob, printStudyGuide, studyGuideHtml } from "@/lib/study-print";
 import { clearNoteDraft, readNoteDraft, writeNoteDraft } from "@/lib/note-draft";
 
 export function CourseNotes({ courseId }: { courseId: string }) {
   const { data, postForm, postJson } = useBuddy();
   const notes = (data?.notes || []).filter((n) => n.courseId === courseId);
+  const course = data?.courses.find((c) => c.id === courseId);
+  const courseLabel = `${course?.code || ""} ${course?.name || ""}`.trim();
   const [kind, setKind] = useState<NoteKind>("note");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -266,14 +268,14 @@ export function CourseNotes({ courseId }: { courseId: string }) {
               className="mt-2 min-h-24 w-full bg-input p-2 text-sm"
               value={transcript}
               onChange={(e) => commit({ transcript: e.target.value })}
-              placeholder="Live transcript appears here — edit freely."
+              placeholder="Live transcript appears here: edit freely."
             />
             {recovered && transcript && (
               <p className="mt-2 text-xs text-gold-2">Recovered a draft from this browser. Hit Save so it is stored on the server.</p>
             )}
             <p className="mt-2 text-xs text-muted">
               {recording
-                ? "Recording — keeps going for up to 2 hours until you stop. Transcript autosaves in this browser. A study summary is generated when you save."
+                ? "Recording: keeps going for up to 2 hours until you stop. Transcript autosaves in this browser. A study summary is generated when you save."
                 : "Transcript autosaves in this browser while you type or record. Study summary is written from the transcript, your notes, PDF/Word/text attachments, and any directions below."}
             </p>
             <textarea
@@ -319,7 +321,9 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           Attachments
           <input type="file" multiple className="mt-1 block" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
         </label>
-        <p className="mt-1 text-xs text-muted">PDF, Word, and text files are read into the study guide. Video files are stored only — use Record + transcribe (or paste a transcript) for lecture video.</p>
+        <p className="mt-1 text-xs text-muted">
+          PDF, Word, and text files are read into the study guide. For lecture video, use Record + transcribe or paste a transcript. Study guides and voice notes can go to your Drive under Askuala.
+        </p>
         {err && <p className="mt-2 text-sm text-red-400">{err}</p>}
         <button onClick={save} className="mt-3 rounded-lg bg-gold px-3 py-2 text-on-gold">
           Save
@@ -354,7 +358,7 @@ export function CourseNotes({ courseId }: { courseId: string }) {
       {openNote && (
         <StudyWindow
           note={openNote}
-          courseLabel={`${data?.courses.find((c) => c.id === courseId)?.code || ""} ${data?.courses.find((c) => c.id === courseId)?.name || ""}`.trim()}
+          courseLabel={courseLabel}
           onClose={() => setOpenNote(null)}
           onRegenerate={async (guideDirections) => {
             const json = await postJson("/api/notes", { id: openNote.id, regenerateSummary: true, guideDirections }, "PATCH");
@@ -424,8 +428,36 @@ function StudyWindow({
   const [err, setErr] = useState("");
   const [guideDirections, setGuideDirections] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
+  const { postForm } = useBuddy();
+  const capturedSummary = useRef("");
   const dateLabel = note.catalogDate || note.createdAt.slice(0, 10);
   const canExport = Boolean(note.summary);
+
+  useEffect(() => {
+    if (!note.summary || capturedSummary.current === note.summary) return;
+    const t = window.setTimeout(() => {
+      void (async () => {
+        if (!bodyRef.current) return;
+        try {
+          const blob = await captureStudyPrintPdf({
+            title: note.title,
+            course: courseLabel,
+            date: dateLabel,
+            html: bodyRef.current.innerHTML,
+            extraHtml: note.body ? note.body.replace(/</g, "&lt;") : "",
+          });
+          const form = new FormData();
+          form.set("noteId", note.id);
+          form.set("studyPdf", new File([blob], "study-guide.pdf", { type: "application/pdf" }));
+          await postForm("/api/notes/print-pdf", form);
+          capturedSummary.current = note.summary;
+        } catch {
+          /* Drive flush retries after the next open */
+        }
+      })();
+    }, 1800);
+    return () => window.clearTimeout(t);
+  }, [note.summary, note.id, note.title, note.body, courseLabel, dateLabel, postForm]);
 
   async function word() {
     if (!note.summary) return;
@@ -547,8 +579,11 @@ function StudyWindow({
                 <ChatMarkdown text={note.summary} />
               </div>
             ) : (
-              <div className="text-[15px] leading-relaxed">No summary yet — add a transcript and save, then rebuild.</div>
+              <div className="text-[15px] leading-relaxed">No summary yet: add a transcript and save, then rebuild.</div>
             )}
+            <p className="mb-3 text-xs text-muted">
+              Rebuild now, then look in Google Drive for <strong>Askuala</strong> → year → term → {courseLabel || "this course"} → Files and Voice recordings. That tree is created when you build: not before. Later terms and courses get their own folders. The PDF in Files is the same print layout (graphs and tables) and lands 12 hours after the last rebuild. Lecture uploads stay in Askuala, not Drive.
+            </p>
             {note.studyPdfDriveUrl && (
               <a className="mt-2 inline-block text-xs text-gold-2 underline" href={note.studyPdfDriveUrl} target="_blank" rel="noreferrer">
                 Study guide PDF on Drive

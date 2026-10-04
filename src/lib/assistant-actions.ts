@@ -3,6 +3,7 @@ import { combineTime, termEnd } from "./apply-extraction";
 import { findMatchingEvent, inferCourseId, isRoutineNoise, normalizeCourseCode, shouldNotRecur } from "./calendar-utils";
 import { nid, nowIso, officeHourTitle, phoneAlertRules } from "./ids";
 import { addPlannedCourse, deleteCourse } from "./planned-courses";
+import { markCourseDriveSync } from "./google-drive";
 import { resolveUiKey } from "./ui-copy";
 import type { AppState, Course, CourseEvent, CourseNote, EventType, Recurrence, TermName } from "./types";
 
@@ -189,13 +190,15 @@ export function executeJsonActions(state: AppState, actions: PlannerAction[]) {
           term,
           year,
         });
-        logs.push(created ? `Added ${added.code} — ${added.name} (${added.term} ${added.year}).` : `${added.code} was already on ${added.term} ${added.year}.`);
+        markCourseDriveSync(added);
+        logs.push(created ? `Added ${added.code}: ${added.name} (${added.term} ${added.year}).` : `${added.code} was already on ${added.term} ${added.year}.`);
       } else if (a.op === "update_course" && course && a.fields) {
+        markCourseDriveSync(course, { code: course.code, name: course.name, year: course.year, term: course.term });
         Object.assign(course, a.fields, { updatedAt: nowIso() });
         applyCourseSchedule(state, course);
         logs.push(`Updated ${course.code}.`);
       } else if (a.op === "delete_course" && course) {
-        const label = `${course.code} — ${course.name}`;
+        const label = `${course.code}: ${course.name}`;
         deleteCourse(state, course);
         logs.push(`Deleted ${label} (removed, not dropped).`);
       } else if (a.op === "drop_course" && course) {
@@ -329,7 +332,7 @@ export function executeAssistantIntent(state: AppState, message: string) {
   if (course && /\boffice\s*hours?\b/i.test(message) && /\b(add|set|update|change|schedule|put)\b/i.test(message)) {
     const blobs = parseOfficeHourBlobs(message);
     const days = daysIn(message);
-    const times = message.match(/(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\s*[-–to]+\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)/i);
+    const times = message.match(/(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\s*(?:-|to)\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)/i);
     const loc = message.match(/\b(LC|WLH|HQ|SSS|DL|AKW|ML)\s*\d+[A-Z]?\b/i)?.[0] || "";
     const line =
       blobs.length || times
@@ -356,7 +359,7 @@ export function executeAssistantIntent(state: AppState, message: string) {
   }
 
   if (course && /\b(delete|remove)\b/i.test(message) && /\b(course|roadmap|degree plan)\b/i.test(message) && !/\bdrop\b/i.test(message)) {
-    const label = `${course.code} — ${course.name}`;
+    const label = `${course.code}: ${course.name}`;
     deleteCourse(state, course);
     logs.push(`Deleted ${label} (removed, not dropped).`);
   } else if (course && /\bdrop (the )?course\b/i.test(message)) {
@@ -430,7 +433,7 @@ If you need to mutate something that is not already listed in ACTION RESULT, inc
 
 ops: add_course, update_course, delete_course, drop_course, restore_course, add_event, update_event, delete_event, add_note, update_note, delete_note, set_office_hours, set_meeting, set_ui.
 
-add_course = names only (code, name, term, year). Use this for degree roadmaps / four-year plans — never invent lectures, psets, or policies from a plan. delete_course permanently removes a course (and its events/notes). drop_course is only for an enrolled class the student is dropping this term. If they say delete/remove, use delete_course.
+add_course = names only (code, name, term, year). Use this for degree roadmaps / four-year plans: never invent lectures, psets, or policies from a plan. delete_course permanently removes a course (and its events/notes). drop_course is only for an enrolled class the student is dropping this term. If they say delete/remove, use delete_course.
 
 set_ui changes labels the student sees (sidebar, headings, buttons). Keys are in PLANNER DATA uiLabels, e.g. {"op":"set_ui","id":"pins.urgent","body":"Due soon"}.
 

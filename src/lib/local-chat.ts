@@ -5,18 +5,19 @@ import { applyDegreeRoadmap, looksLikeDegreeRoadmap, purgeRoadmapJunk } from "./
 import { heuristicExtract, type Extraction } from "./heuristic";
 import { extractWithAI } from "./ai";
 import { attachEventsToCourses, expandEvents, inferCourseId } from "./calendar-utils";
-import { llmChat, llmMissingMessage, geminiApiKey } from "./llm";
+import { llmChat, llmMissingMessage, geminiApiKey, isGeminiHighDemand, friendlyGeminiError } from "./llm";
 import { runGeminiAgent } from "./gemini-agent";
 import { refreshGoogleIfStale } from "./google";
+import { flushCourseDriveSync, markCourseDriveSync } from "./google-drive";
 import { executeJsonActions, parseActionsFromReply, type PlannerAction } from "./assistant-actions";
 import { listUiLabels } from "./ui-copy";
 import { APP_NAME, ASSISTANT_NAME } from "./brand";
 
 const SYSTEM_GUIDE = `You are ${ASSISTANT_NAME}, the assistant inside ${APP_NAME}.
 
-If they ask who you are: you are ${ASSISTANT_NAME} (not the app itself — the app is ${APP_NAME}). You answer with Google Gemini when a key is saved in Settings. You are not DeepSeek, ChatGPT, Claude, or Grok. Then answer anything else they asked.
+If they ask who you are: you are ${ASSISTANT_NAME} (not the app itself: the app is ${APP_NAME}). You answer with Google Gemini when a key is saved in Settings. Then answer anything else they asked.
 
-Answer the question they asked first. Use PLANNER DATA (it is their live planner). If ACTION RESULT is present, those edits already happened — confirm them, then answer.
+Answer the question they asked first. Use PLANNER DATA (it is their live planner). If ACTION RESULT is present, those edits already happened: confirm them, then answer.
 
 You have full read of courses, calendar (including repeats), notes, transcripts, study summaries, policies, chats, settings, and on-screen labels (uiLabels). When they ask you to change the planner or what they see on screen, you may emit an \`\`\`actions JSON fence (see rules below) and the app will apply it.
 
@@ -59,15 +60,27 @@ export async function runAssistant(opts: {
 
   let applied: Course | null = null;
   const blob = `${extractedText} ${message} ${extra}`;
+  const finish = async <T extends { reply: string; appliedCourseId: string | null }>(out: T) => {
+    try {
+      await flushCourseDriveSync(state, applied ? [applied] : []);
+    } catch {
+      /* planner reply still stands */
+    }
+    return out;
+  };
   if (extractedText.length > 120 && looksLikeDegreeRoadmap(blob)) {
     purgeRoadmapJunk(state);
     const result = applyDegreeRoadmap(state, extractedText);
     attachEventsToCourses(state);
-    const list = result.courses.map((c) => `• ${c.term} ${c.year}: ${c.code} — ${c.name}`).join("\n");
-    return {
-      reply: `Added ${result.created} planned courses from your roadmap (${result.skipped} already on the planner). Names and terms only — no lectures or assignments invented.\n\n${list}`,
+    const list = result.courses.map((c) => `• ${c.term} ${c.year}: ${c.code}: ${c.name}`).join("\n");
+    for (const plan of result.courses) {
+      const course = state.courses.find((c) => c.code === plan.code && c.term === plan.term && c.year === plan.year);
+      if (course) markCourseDriveSync(course);
+    }
+    return finish({
+      reply: `Added ${result.created} planned courses from your roadmap (${result.skipped} already on the planner). Names and terms only: no lectures or assignments invented.\n\n${list}`,
       appliedCourseId: null,
-    };
+    });
   }
   const looksSyllabus =
     extractedText.length > 120 &&
@@ -82,15 +95,17 @@ export async function runAssistant(opts: {
   if (geminiApiKey(state.settings)) {
     try {
       const { reply } = await runGeminiAgent({ state, message, extractedText, history, applied });
-      return { reply, appliedCourseId: applied?.id ?? null };
+      return finish({ reply, appliedCourseId: applied?.id ?? null });
     } catch (e) {
       const err = e instanceof Error ? e.message : "Gemini failed";
-      return {
-        reply: /denied access/i.test(err)
-          ? `Tried every Gemini Flash/Pro id this key can call. Google returned the same block on all of them (${err.slice(0, 100)}). That is a project-level deny, not a missing model — a new key on the same Cloud project will fail too. Create a **new project** + key at aistudio.google.com. I did not fall back to DeepSeek.`
-          : `Tried every available Gemini model; none returned text (${err.slice(0, 220)}). I did not fall back to DeepSeek.`,
+      return finish({
+        reply: /denied access|rejected the API key/i.test(err)
+          ? "Gemini rejected this API key. Check it in Settings."
+          : isGeminiHighDemand(err)
+            ? friendlyGeminiError(err)
+            : friendlyGeminiError(err) || "Gemini did not reply. Send that again.",
         appliedCourseId: applied?.id ?? null,
-      };
+      });
     }
   }
 
@@ -107,11 +122,11 @@ export async function runAssistant(opts: {
     }
   }
 
-  if (reply) return { reply, appliedCourseId: applied?.id ?? null };
+  if (reply) return finish({ reply, appliedCourseId: applied?.id ?? null });
   if (reason === "install" || reason === "pulling") {
-    return { reply: error || llmMissingMessage(), appliedCourseId: applied?.id ?? null };
+    return finish({ reply: error || llmMissingMessage(), appliedCourseId: applied?.id ?? null });
   }
-  return { reply: plannerFallback(state, message, applied), appliedCourseId: applied?.id ?? null };
+  return finish({ reply: plannerFallback(state, message, applied), appliedCourseId: applied?.id ?? null });
 }
 
 function packPrompt(state: AppState, history: ChatMessage[], message: string, extractedText: string, applied: Course | null, actionLog = "") {
@@ -190,7 +205,7 @@ function appContext(state: AppState, message: string) {
   lines.push("COURSES:");
   for (const c of active) {
     lines.push(
-      `${c.code} | ${c.name} | ${c.term} ${c.year} | ${c.instructor || "—"} ${c.instructorEmail || ""} | ${c.meetingPattern || "—"} @ ${c.location || "—"} | ${upcoming.filter((e) => inferCourseId(e, state.courses) === c.id).length} upcoming`,
+      `${c.code} | ${c.name} | ${c.term} ${c.year} | ${c.instructor || "none"} ${c.instructorEmail || ""} | ${c.meetingPattern || "none"} @ ${c.location || "none"} | ${upcoming.filter((e) => inferCourseId(e, state.courses) === c.id).length} upcoming`,
     );
     for (const p of c.policies) lines.push(`  policy ${p.title}: ${p.body.slice(0, 280)}`);
     if (c.extraContext) lines.push(`  extra: ${c.extraContext.slice(0, 400)}`);
@@ -232,7 +247,7 @@ function plannerFallback(state: AppState, message: string, applied: Course | nul
   if (/\b(who are you|what are you|are you (gemini|deepseek|chatgpt|claude|grok|ollama)|which model)\b/i.test(message)) {
     const g = geminiApiKey(state.settings);
     if (g) return `I'm **${ASSISTANT_NAME}**, the assistant in **${APP_NAME}**, running on **Google Gemini**. I can read and edit your courses, calendar, notes, and the labels you see in the app.`;
-    return `I'm **${ASSISTANT_NAME}**, the assistant in **${APP_NAME}**. Gemini is not set up on this account — paste a key in Settings.`;
+    return `I'm **${ASSISTANT_NAME}**, the assistant in **${APP_NAME}**. Gemini is not set up on this account: paste a key in Settings.`;
   }
   attachEventsToCourses(state);
   const focus =
@@ -259,7 +274,7 @@ function plannerFallback(state: AppState, message: string, applied: Course | nul
 function eventLine(state: AppState, e: CourseEvent, detail = 80) {
   const code = state.courses.find((c) => c.id === inferCourseId(e, state.courses))?.code || "NON-COURSE";
   const extra = (e.details || "").slice(0, detail);
-  return `- ${new Date(e.start).toLocaleString()}${e.end ? `–${new Date(e.end).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} | ${e.type} | ${code} | ${e.title}${extra ? ` | ${extra}` : ""}${e.location ? ` @ ${e.location}` : ""}`;
+  return `- ${new Date(e.start).toLocaleString()}${e.end ? ` to ${new Date(e.end).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} | ${e.type} | ${code} | ${e.title}${extra ? ` | ${extra}` : ""}${e.location ? ` @ ${e.location}` : ""}`;
 }
 
 export function titleFromMessage(text: string) {
@@ -305,7 +320,7 @@ export async function titleChatThread(opts: {
         {
           role: "system",
           content:
-            "Write a 2–6 word title for this student chat. Name the task or topic (for example “ECON 1115 pset 2 help”), not the greeting. No quotes, no trailing period, Title Case.",
+            "Write a 2 to 6 word title for this student chat. Name the task or topic (for example “ECON 1115 pset 2 help”), not the greeting. No quotes, no trailing period, Title Case.",
         },
         {
           role: "user",

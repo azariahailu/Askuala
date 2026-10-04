@@ -16,10 +16,10 @@ export async function GET() {
       ...status,
       pulling: !status.ready && (progress.running || progress.bytes > 50_000_000),
       progress,
-      message: status.ready ? `DeepSeek is ready (${status.deepseek}).` : pullMessage(),
+      message: status.ready ? "Local assistant engine is ready." : pullMessage(),
       modelWanted: DEEPSEEK_PULL_MODEL,
       unlimited: true,
-      provider: "local DeepSeek via Ollama",
+      provider: "local",
     });
   } catch (err) {
     return fail(err);
@@ -35,13 +35,13 @@ export async function POST() {
       return NextResponse.json(
         {
           ok: false,
-          error: "Install Ollama once from https://ollama.com. You can quit that app after — this app starts the engine when you chat.",
+          error: "Install Ollama once from https://ollama.com. You can quit that app after: this app starts the engine when you chat.",
         },
         { status: 400 },
       );
     }
     if (status.ready) {
-      return NextResponse.json({ ok: true, message: `DeepSeek is ready (${status.deepseek}). No chat or upload limits.` });
+      return NextResponse.json({ ok: true, message: "Local assistant engine is ready." });
     }
     const progress = pullProgress();
     if (progress.running || progress.bytes > 50_000_000) {
@@ -51,7 +51,7 @@ export async function POST() {
     const again = await ensureLocalDeepseek();
     return NextResponse.json({
       ok: again.ok,
-      message: again.ok ? `DeepSeek is ready (${again.model}).` : again.message,
+      message: again.ok ? "Local assistant engine is ready." : again.message,
     });
   } catch (err) {
     return fail(err);

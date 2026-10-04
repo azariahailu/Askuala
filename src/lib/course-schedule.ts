@@ -39,7 +39,7 @@ function clock(raw: string, fallbackH: number, fallbackM = 0) {
 export function parseMeetingPattern(pattern: string) {
   const text = pattern || "";
   const byDay = daysIn(text);
-  const times = text.match(/(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\s*[-–]\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)/i);
+  const times = text.match(/(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\s*[- to ]\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)/i);
   if (!byDay.length || !times) return null;
   return { byDay, start: clock(times[1], 11, 35), end: clock(times[2], 12, 50) };
 }
@@ -49,7 +49,7 @@ export function parseOfficeHourBlobs(blob: string, assume = false) {
   const chunks = blob.split(/\n+/);
   for (const line of chunks) {
     if (!assume && !/\boffice\s*hours?\b|\bOH\b/i.test(line) && !/\bdrop-?in\b/i.test(line)) continue;
-    const times = line.match(/(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\s*[-–to]+\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)/i);
+    const times = line.match(/(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\s*(?:-|to)\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)/i);
     if (!times) continue;
     const days = daysIn(line);
     const loc = line.match(/\b(LC|WLH|HQ|SSS|DL|AKW|ML|KLINE|LINSLEY|STOECKEL|BECTON)\s*\d+[A-Z]?\b/i)?.[0] || "";
@@ -61,7 +61,7 @@ export function parseOfficeHourBlobs(blob: string, assume = false) {
     });
   }
   const loose = blob.match(
-    /\boffice\s*hours?\b[:\s]*([A-Za-z]{1,9})[^\n]{0,12}(\d{1,2}(?::\d{2})?)\s*[-–]\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?/i,
+    /\boffice\s*hours?\b[:\s]*([A-Za-z]{1,9})[^\n]{0,12}(\d{1,2}(?::\d{2})?)\s*[- to ]\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?/i,
   );
   if (loose && !out.length) {
     const mer = loose[4] || "pm";
@@ -207,7 +207,7 @@ export function applyCourseSchedule(state: AppState, course: Course) {
           input: {
             courseId: course.id,
             title: officeHourTitle(course.instructor || "Instructor", course.code, oh.location),
-            details: `Weekly office hours ${oh.start}–${oh.end}${oh.location ? ` at ${oh.location}` : ""}.`,
+            details: `Weekly office hours ${oh.start} to ${oh.end}${oh.location ? ` at ${oh.location}` : ""}.`,
             type: "office_hour" as const,
             start,
             end: combineTime(course.year, course.term, oh.end),
@@ -266,7 +266,7 @@ export function salvageCourseName(course: Course) {
   if (!isJunkName(course.name)) return course.name.trim();
   const text = course.syllabusText || "";
   const code = course.code.replace(/\s+/g, "\\s*");
-  const titled = text.match(new RegExp(`${code}\\s*[:\\-–]\\s*([^\\n]{8,90})`, "i"));
+  const titled = text.match(new RegExp(`${code}\\s*[:\\-]\\s*([^\\n]{8,90})`, "i"));
   if (titled) {
     const name = titled[1].replace(/\s+/g, " ").trim();
     if (!isJunkName(name)) return name;

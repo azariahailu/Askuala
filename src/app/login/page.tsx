@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SignInGoogle } from "@/components/SignInGoogle";
+import { SchoolCalGuide } from "@/components/SchoolCalGuide";
 import { APP_NAME, ASSISTANT_NAME } from "@/lib/brand";
 
 export default function LoginPage() {
@@ -22,25 +23,17 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
-  const [blobDown, setBlobDown] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const g = params.get("google");
     if (g === "unavailable" || g === "missing") {
-      setErr("Google sign-in isn’t available. Use email below.");
+      setErr("Google sign in isn’t available. Use email below.");
     }
     if (g === "phone") {
-      setErr("This temporary phone tunnel cannot use Google sign-in. Open the deployed Askuala URL (or http://127.0.0.1:3000 on this computer) and sign in with Google there.");
+      setErr("Google sign in isn’t available on this link. Open askualastudy.vercel.app and sign in there.");
     }
-    if (g === "blob") setErr("");
-    if (g === "error") setErr(params.get("message") || "Google sign-in failed.");
-    void fetch("/api/blob-status")
-      .then((r) => r.json())
-      .then((j) => {
-        if (j && j.ok === false && j.error) setBlobDown(String(j.error));
-      })
-      .catch(() => undefined);
+    if (g === "error") setErr(params.get("message") || "Google sign in failed.");
   }, [params]);
 
   async function submit(e: React.FormEvent) {
@@ -78,40 +71,14 @@ function LoginForm() {
           </div>
         </div>
         <p className="mb-4 text-sm text-muted">
-          Use this same site on a phone, tablet, or computer. Prefer your <strong>college Google</strong> if that’s where class calendars live.
+          Same account on your phone or computer. If Google says the app isn’t verified, that’s normal for a class tool: choose Continue. Use your college Google if it lets you in; otherwise use a personal Gmail (see below).
         </p>
-        {blobDown && (
-          <div className="mb-4 rounded-xl border border-red-400/40 bg-urgent p-3 text-sm">
-            <p className="font-medium text-red-400">Cloud accounts are on paused Vercel Blob</p>
-            <p className="mt-1 text-muted">
-              Email + password is not a separate login. User records live in the same file store as Google sign-in. Until Blob unpauses (around 10/29), use this Mac at{" "}
-              <a className="text-gold-2 underline" href="http://127.0.0.1:3000/login">
-                http://127.0.0.1:3000/login
-              </a>
-              .
-            </p>
-            <p className="mt-1 text-muted">{blobDown}</p>
-            <p className="mt-2">
-              <a className="text-gold-2 underline" href="https://vercel.com/ha-ge-ez/~/settings/billing" target="_blank" rel="noreferrer">
-                Upgrade Ha Ge'ez to Pro
-              </a>
-              {" · "}
-              <a className="text-gold-2 underline" href="https://vercel.com/ha-ge-ez/~/stores/blob/store_ie8xwB75zlcyHtla" target="_blank" rel="noreferrer">
-                Blob store
-              </a>
-            </p>
-          </div>
-        )}
         <details className="mb-4 rounded-lg border border-line bg-input p-3 text-sm text-muted">
-          <summary className="cursor-pointer text-gold-2">College Google blocked sign-in?</summary>
+          <summary className="cursor-pointer text-gold-2">College email blocks Google sign in?</summary>
+          <SchoolCalGuide className="mt-2" />
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>
-              While the app is in Google Cloud <strong>Testing</strong>, only emails listed as test users can sign in. Publishing the OAuth app (production) allows accounts your Cloud project permits.
-            </li>
-            <li>
-              Some campuses <strong>block unverified apps</strong> in Workspace. Try Advanced → Continue (if shown), or create an Askuala login with email and connect Google from Settings, or ask IT to allow this client ID.
-            </li>
-            <li>You can use email + password if you signed up that way. Google-only accounts stay on Google.</li>
+            <li>Sign up here with a personal Gmail, or email + password, then Connect Google in Settings with the account that can see the school events.</li>
+            <li>If Google shows Advanced → Continue, that’s the unverified-app warning. Campuses that block it entirely need the personal-Gmail path above.</li>
           </ul>
         </details>
         <SignInGoogle

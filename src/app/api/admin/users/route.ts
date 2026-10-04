@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { deleteUserAccount, listPublicUsers, requireAdmin, setUserDisabled } from "@/lib/auth";
+import { deleteUserAccount, listPublicUsers, loadAdminUserDetail, requireAdmin, setUserDisabled } from "@/lib/auth";
 import { googleAppPeek } from "@/lib/google-app";
 import { smtpPeek } from "@/lib/mail-account";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await requireAdmin();
+    const id = new URL(req.url).searchParams.get("id");
+    if (id) return NextResponse.json({ user: await loadAdminUserDetail(id) });
     const google = googleAppPeek();
     const smtp = smtpPeek();
     return NextResponse.json({

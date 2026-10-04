@@ -86,11 +86,11 @@ export default function HostGoogleSetupPage() {
             In the top bar, pick the Cloud project that owns this app (not a random empty project).
           </li>
           <li>
-            Finish the consent screen first — Google greys out <strong>Add URI</strong> until this exists. Open{" "}
+            Finish the consent screen first: Google greys out <strong>Add URI</strong> until this exists. Open{" "}
             <a className="text-gold-2 underline" href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noreferrer">
               Google Auth Platform
             </a>
-            , click <strong>Get started</strong> (or Branding). User type <strong>External</strong>. App name {APP_NAME}. Support email = the Gmail you are signed into Cloud with. Developer contact = same Gmail. Skip homepage, privacy, terms, logo, and authorized domains (do not add <code>vercel.app</code> — you do not own it). Click through until it is saved. If it still says “configure your consent screen,” refresh the tab, then open Clients again.
+            , click <strong>Get started</strong> (or Branding). User type <strong>External</strong>. App name {APP_NAME}. Support email = the Gmail you are signed into Cloud with. Developer contact = same Gmail. Skip homepage, privacy, terms, logo, and authorized domains (do not add <code>vercel.app</code>: you do not own it). Click through until it is saved. If it still says “configure your consent screen,” refresh the tab, then open Clients again.
           </li>
           <li>
             Enable{" "}
@@ -108,7 +108,7 @@ export default function HostGoogleSetupPage() {
             <a className="text-gold-2 underline" href="https://console.cloud.google.com/auth/audience" target="_blank" rel="noreferrer">
               Audience
             </a>
-            , either add every Gmail that will sign in as a <strong>test user</strong> (including yours), or set the app to <strong>In production</strong>. Testing mode blocks everyone who isn’t on that list. Production does not need Google’s full verification for a student app — people may see “Google hasn’t verified this app” and click Advanced → continue.
+            , either add every Gmail that will sign in as a <strong>test user</strong> (including yours), or set the app to <strong>In production</strong>. Testing mode blocks everyone who isn’t on that list. Production does not need Google’s full verification for a student app: people may see “Google hasn’t verified this app” and click Advanced → continue.
           </li>
           <li>
             Then{" "}
@@ -118,7 +118,7 @@ export default function HostGoogleSetupPage() {
             : type <strong>Web application</strong>, name {APP_NAME}. Now Add URI works.
           </li>
           <li>
-            Authorized redirect URIs — add every URL below that you will actually use:
+            Authorized redirect URIs: add every URL below that you will actually use:
             <ul className="mt-1 list-disc pl-5 font-mono text-xs">
               {redirects.map((u) => (
                 <li key={u}>{u}</li>
@@ -129,7 +129,7 @@ export default function HostGoogleSetupPage() {
 
         <form onSubmit={save} className="space-y-3">
           <label className="block text-sm">
-            Public URL after deploy (optional — only to list the extra redirect)
+            Public URL after deploy (optional: only to list the extra redirect)
             <input
               className="mt-1 w-full rounded-lg bg-input p-3 text-sm"
               placeholder="https://askuala.yourschool.edu"

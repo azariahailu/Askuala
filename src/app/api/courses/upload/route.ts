@@ -3,7 +3,7 @@ import { extractTextFromBuffer, extractTextFromPath } from "@/lib/extract-text";
 import { freeExtract } from "@/lib/local-chat";
 import { applyExtraction } from "@/lib/apply-extraction";
 import { applyDegreeRoadmap, looksLikeDegreeRoadmap, purgeRoadmapJunk } from "@/lib/planned-courses";
-import { pushPlainUploadsToDrive } from "@/lib/google-drive";
+import { syncCourseDriveFolder } from "@/lib/google-drive";
 import { saveUpload } from "@/lib/store";
 import { nid, nowIso } from "@/lib/ids";
 import type { Attachment } from "@/lib/types";
@@ -18,7 +18,6 @@ export async function POST(req: Request) {
     const files = form.getAll("files").filter((f): f is File => f instanceof File);
     let text = "";
     const attachments: Attachment[] = [];
-    const fileBufs: Record<string, Buffer> = {};
     return await mutate(async (state, userId) => {
       for (const file of files) {
         const saved = await saveUpload(userId, file, file.name);
@@ -30,7 +29,6 @@ export async function POST(req: Request) {
           path: saved.filename,
           createdAt: nowIso(),
         });
-        if (saved.buf) fileBufs[saved.filename] = saved.buf;
         const extracted = saved.dest
           ? await extractTextFromPath(saved.dest, file.type, file.name)
           : await extractTextFromBuffer(saved.buf || Buffer.alloc(0), file.type, file.name);
@@ -42,16 +40,29 @@ export async function POST(req: Request) {
       if (looksLikeDegreeRoadmap(source)) {
         purgeRoadmapJunk(state);
         const result = applyDegreeRoadmap(state, source);
+        for (const plan of result.courses) {
+          const course = state.courses.find((c) => c.code === plan.code && c.term === plan.term && c.year === plan.year);
+          if (!course) continue;
+          try {
+            await syncCourseDriveFolder(state, course);
+          } catch {
+            /* planner still saved */
+          }
+        }
         return {
           courseId: courseId || state.courses[state.courses.length - 1]?.id,
           summary: `Degree roadmap: added ${result.created} course names (${result.skipped} already present). No lectures or assignments invented.`,
           files: attachments.length,
         };
       }
+      const existing = courseId ? state.courses.find((c) => c.id === courseId) : undefined;
+      const prev = existing
+        ? { code: existing.code, name: existing.name, year: existing.year, term: existing.term }
+        : undefined;
       const extraction = await freeExtract(source, extra, state.settings);
       const course = applyExtraction(state, extraction, { extraContext: extra, courseId });
       try {
-        await pushPlainUploadsToDrive(state, userId, course, attachments, fileBufs);
+        await syncCourseDriveFolder(state, course, prev);
       } catch {
         /* course still saved */
       }

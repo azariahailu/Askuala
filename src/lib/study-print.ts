@@ -15,6 +15,7 @@ export function studyGuideHtml(opts: {
   date: string;
   html: string;
   extraHtml?: string;
+  capture?: boolean;
 }) {
   const extra = opts.extraHtml
     ? `<h2 class="kicker">Your notes</h2><div class="notes">${opts.extraHtml}</div>`
@@ -32,7 +33,8 @@ export function studyGuideHtml(opts: {
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
     html, body { margin: 0; background: #f7f1e4; color: #1c1914; }
-    body { font-family: "Source Serif 4", Palatino, Georgia, "Times New Roman", serif; font-size: 16px; line-height: 1.55; }
+    body { font-family: "Source Serif 4", Palatino, Georgia, "Times New Roman", serif; font-size: 16px; line-height: 1.55; letter-spacing: normal; word-spacing: 0.02em; }
+    .buddy-md, .buddy-md p, .buddy-md li { letter-spacing: normal; word-spacing: 0.03em; white-space: normal; }
     .sheet { max-width: 44rem; margin: 0 auto; padding: 2.4rem 2.2rem 3rem; }
     .brand { font-family: "Source Serif 4", Palatino, serif; font-style: italic; color: #8a5a00; }
     .meta { font-family: "Source Sans 3", ui-sans-serif, sans-serif; font-size: 0.78rem; letter-spacing: 0.16em; text-transform: uppercase; color: #8a5a00; margin: 0 0 0.4rem; }
@@ -54,6 +56,29 @@ export function studyGuideHtml(opts: {
     .toolbar { font-family: "Source Sans 3", sans-serif; display: flex; gap: 0.5rem; justify-content: flex-end; padding: 0.75rem 1rem; background: #efe8d8; border-bottom: 1px solid #e0d6c2; }
     .toolbar button { font: inherit; border: 0; border-radius: 0.5rem; padding: 0.45rem 0.9rem; background: #b8860b; color: #111; cursor: pointer; }
     @page { margin: 0.6in; }
+    body.pdf { background: #ffffff; }
+    body.pdf .toolbar { display: none !important; }
+    body.pdf .sheet { max-width: none; padding: 0.4in 0.55in 0.55in; }
+    body.pdf .buddy-scroll { overflow: visible !important; max-width: 100%; }
+    body.pdf .buddy-md table {
+      display: table;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      table-layout: auto;
+    }
+    body.pdf .buddy-md th,
+    body.pdf .buddy-md td {
+      white-space: normal !important;
+      overflow-wrap: break-word;
+      word-break: normal;
+      font-size: 10.5pt;
+      line-height: 1.35;
+    }
+    body.pdf .buddy-md p,
+    body.pdf .buddy-md li,
+    body.pdf .study-graph,
+    body.pdf .buddy-md table { break-inside: avoid; page-break-inside: avoid; }
     @media print {
       .toolbar { display: none !important; }
       html, body { background: white; }
@@ -85,7 +110,7 @@ export function studyGuideHtml(opts: {
     }
   </style>
 </head>
-<body>
+<body class="${opts.capture ? "pdf" : ""}">
   <div class="toolbar">
     <button type="button" onclick="window.print()">Print / Save as PDF</button>
   </div>
@@ -125,6 +150,103 @@ export function printStudyGuide(opts: {
     iframe.contentWindow?.print();
     setTimeout(() => iframe.remove(), 2000);
   };
+}
+
+export async function captureStudyPrintPdf(opts: {
+  title: string;
+  course: string;
+  date: string;
+  html: string;
+  extraHtml?: string;
+}): Promise<Blob> {
+  const page = studyGuideHtml({ ...opts, capture: true });
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText = "position:fixed;left:-2000px;top:0;width:816px;height:1400px;opacity:1;pointer-events:none;border:0";
+  iframe.srcdoc = page;
+  document.body.appendChild(iframe);
+  await new Promise<void>((resolve) => {
+    iframe.onload = () => resolve();
+    setTimeout(() => resolve(), 4000);
+  });
+  const idoc = iframe.contentDocument;
+  try {
+    await idoc?.fonts.ready;
+  } catch {
+    /* fallback fonts */
+  }
+  await new Promise((r) => setTimeout(r, 500));
+  const sheet = idoc?.querySelector(".sheet") as HTMLElement | null;
+  if (!sheet) {
+    iframe.remove();
+    throw new Error("Could not render the study guide page.");
+  }
+  const html2canvas = (await import("html2canvas")).default;
+  const canvas = await html2canvas(sheet, {
+    backgroundColor: "#ffffff",
+    scale: 1.5,
+    useCORS: true,
+    logging: false,
+    windowWidth: 816,
+    onclone: (_, el) => {
+      el.style.letterSpacing = "normal";
+      el.style.wordSpacing = "0.03em";
+    },
+    ...({ letterRendering: true } as object),
+  });
+  iframe.remove();
+  const { PDFDocument, rgb } = await import("pdf-lib");
+  const pdf = await PDFDocument.create();
+  const pageWidth = 612;
+  const pageHeight = 792;
+  const slicePx = Math.floor((pageHeight / pageWidth) * canvas.width);
+  let y = 0;
+  while (y < canvas.height) {
+    const end = nextSafeBreak(canvas, y, slicePx);
+    const h = Math.max(1, end - y);
+    const slice = document.createElement("canvas");
+    slice.width = canvas.width;
+    slice.height = h;
+    const ctx = slice.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+    }
+    const img = await pdf.embedPng(slice.toDataURL("image/png"));
+    const printed = pdf.addPage([pageWidth, pageHeight]);
+    printed.drawRectangle({ x: 0, y: 0, width: pageWidth, height: pageHeight, color: rgb(1, 1, 1) });
+    const drawH = (h / canvas.width) * pageWidth;
+    printed.drawImage(img, { x: 0, y: pageHeight - drawH, width: pageWidth, height: drawH });
+    y = end;
+  }
+  const bytes = await pdf.save();
+  return new Blob([Uint8Array.from(bytes)], { type: "application/pdf" });
+}
+
+function rowIsBlank(data: Uint8ClampedArray) {
+  let dark = 0;
+  for (let i = 0; i < data.length; i += 48) {
+    if (data[i] < 248 || data[i + 1] < 248 || data[i + 2] < 248) dark += 1;
+    if (dark > 2) return false;
+  }
+  return true;
+}
+
+function nextSafeBreak(canvas: HTMLCanvasElement, start: number, ideal: number) {
+  const target = Math.min(start + ideal, canvas.height);
+  if (target >= canvas.height) return canvas.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return target;
+  const min = start + Math.floor(ideal * 0.58);
+  for (let y = target; y > min; y -= 3) {
+    if (rowIsBlank(ctx.getImageData(0, y, canvas.width, 1).data)) {
+      let bottom = y;
+      while (bottom < target && rowIsBlank(ctx.getImageData(0, bottom + 3, canvas.width, 1).data)) bottom += 3;
+      return Math.min(canvas.height, bottom + 3);
+    }
+  }
+  return target;
 }
 
 function escapeHtml(s: string) {

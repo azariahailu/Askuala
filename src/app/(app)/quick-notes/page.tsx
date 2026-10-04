@@ -77,7 +77,7 @@ export default function QuickNotesPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Quick Notes</h1>
-        <p className="text-sm text-muted">Scratch pad and checklists — not tied to a course.</p>
+        <p className="text-sm text-muted">Scratch pad and checklists: not tied to a course.</p>
       </div>
 
       <section className="rounded-2xl border border-line bg-surface p-4">
@@ -127,7 +127,7 @@ export default function QuickNotesPage() {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gold-2">Notes</h2>
         <textarea
           className="min-h-64 w-full resize-y rounded-lg bg-input p-3 text-sm"
-          placeholder="Write anything — packing lists, reminders, ideas…"
+          placeholder="Write anything: packing lists, reminders, ideas…"
           value={body}
           onChange={(e) => {
             const next = e.target.value;

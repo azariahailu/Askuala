@@ -4,5 +4,5 @@ export function isBlobSuspended(err: unknown) {
 }
 
 export function blobSuspendedMessage() {
-  return "Sign-in is blocked because Vercel Blob on the Hobby plan hit its monthly cap. Your accounts and calendars are still in the store — nothing was deleted. Access on this store resumes 10/29/26, or upgrade the Ha Ge'ez team to Pro (vercel.com/ha-ge-ez/~/settings/billing) and then unsuspend Storage → Blob → askualastudy.";
+  return "Askuala is temporarily unavailable. Your courses and calendar are still saved. Try again in a bit, or email buddy.askuala@gmail.com.";
 }

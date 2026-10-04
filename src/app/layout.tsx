@@ -19,7 +19,7 @@ const serif = Source_Serif_4({
 
 export const metadata: Metadata = {
   title: "Askuala",
-  description: "Askuala — college planner with Askuala Buddy, an assistant that knows your courses.",
+  description: "Askuala: college planner with Askuala Buddy, an assistant that knows your courses.",
   applicationName: "Askuala",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

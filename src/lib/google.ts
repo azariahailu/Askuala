@@ -261,7 +261,7 @@ function googleErr(err: unknown) {
   const nestedMsg = typeof nested === "string" ? nested : nested?.message;
   const msg = nestedMsg || e.errors?.[0]?.message || e.message || "Google Calendar did not save this event.";
   if (/disabled_client/i.test(msg)) {
-    return "Google’s OAuth client for this app is disabled (disabled_client). That usually follows the buddy.askuala Google account being shut down. Appeal will not turn Calendar sync back on by itself — you need a new OAuth client from a Google Cloud project you still own, then put GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.local and connect your personal Gmail.";
+    return "Google’s OAuth client for this app is disabled (disabled_client). That usually follows the buddy.askuala Google account being shut down. Appeal will not turn Calendar sync back on by itself: you need a new OAuth client from a Google Cloud project you still own, then put GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.local and connect your personal Gmail.";
   }
   return msg;
 }
@@ -360,20 +360,9 @@ export async function pushEvent(state: AppState, event: CourseEvent, syncReminde
   if (quietOnPhone(event)) {
     event.googleAlerts = false;
     event.alerts = [];
-    if (event.googleEventId && event.googleCalendarId) {
-      try {
-        await api.events.patch({
-          calendarId: event.googleCalendarId,
-          eventId: event.googleEventId,
-          requestBody: { reminders: { useDefault: false, overrides: [] } },
-        });
-      } catch {
-        /* leftover */
-      }
-    }
-    return;
+  } else {
+    ensureEventPhoneReminders(event);
   }
-  ensureEventPhoneReminders(event);
   const course = event.courseId ? state.courses.find((c) => c.id === event.courseId) : null;
   const courseCal =
     event.googleCalendarId && event.googleCalendarId !== "primary" ? event.googleCalendarId : course ? await ensureCourseCalendar(state, course) : null;
@@ -860,12 +849,11 @@ export async function syncGoogle(state: AppState) {
   await dropGoogleDuplicates(state, [...removedBefore, ...removedAfter]);
 
   const email = state.settings.google.connectedEmail || "Google Calendar";
-  const restored = discovered.restored.length ? ` Course calendars: ${discovered.restored.join("; ")}.` : "";
   state.settings.google.lastSyncedAt = new Date().toISOString();
   return {
     ok: true,
     reason: "synced" as const,
-    message: `Synced from now onward with ${email} (${discovered.ids.length} calendars). Past events were left as-is.${restored}`,
+    message: "Calendar is up to date.",
     googleEmail: email,
     restoredCalendars: discovered.restored,
     visibleCalendars: discovered.seen,

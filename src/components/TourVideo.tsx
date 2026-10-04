@@ -25,7 +25,7 @@ type Scene = { t: string; d: string; kind: Kind; path: string; x: string; y: str
 const SCENES: Scene[] = [
   {
     t: "Sign in",
-    d: "College Google or email + password on this same site — phone, tablet, or computer.",
+    d: "College Google or email + password on this same site: phone, tablet, or computer.",
     kind: "login",
     path: "askualastudy.vercel.app/login",
     x: "50%",
@@ -42,7 +42,7 @@ const SCENES: Scene[] = [
   },
   {
     t: "While you were away",
-    d: "Leave for 3+ hours and Home shows the snapshot from when you stopped — not a new session.",
+    d: "If you come back later, Home shows when you left and that the calendar is up to date.",
     kind: "resume",
     path: "askualastudy.vercel.app/home",
     nav: "Home",
@@ -60,7 +60,7 @@ const SCENES: Scene[] = [
   },
   {
     t: "Syllabus → calendar",
-    d: "Upload or paste. Lectures, office hours, and all dated work land on the calendar — readings too.",
+    d: "Upload or paste. Lectures, office hours, and all dated work land on the calendar: readings too.",
     kind: "syllabus",
     path: "askualastudy.vercel.app/courses/econ-1115",
     nav: "ECON 1115",
@@ -69,7 +69,7 @@ const SCENES: Scene[] = [
   },
   {
     t: "Course page",
-    d: "Each course has Overview, Calendar, and Notes — same urgent, majors, and work-by-week as Home.",
+    d: "Each course has Overview, Calendar, and Notes: same urgent, majors, and work-by-week as Home.",
     kind: "course",
     path: "askualastudy.vercel.app/courses/econ-1115",
     nav: "ECON 1115",
@@ -114,7 +114,7 @@ const SCENES: Scene[] = [
   },
   {
     t: "Study guides",
-    d: "Save a recording and Askuala writes a study PDF — graphs included. Print, Word, or Drive outputs.",
+    d: "Save a recording and Askuala writes a study PDF: graphs included. Print, Word, or Drive Files.",
     kind: "study",
     path: "askualastudy.vercel.app/courses/econ-1115?tab=notes",
     nav: "ECON 1115",
@@ -132,7 +132,7 @@ const SCENES: Scene[] = [
   },
   {
     t: "Askuala Buddy",
-    d: "This chat can read and edit the whole planner — move an exam, add a pset, open a course — using your Gemini key.",
+    d: "Ask Buddy to move an exam, add homework, or open a course: it can update your planner.",
     kind: "buddy",
     path: "askualastudy.vercel.app/assistant",
     nav: "Buddy",
@@ -141,7 +141,7 @@ const SCENES: Scene[] = [
   },
   {
     t: "Your Gemini key",
-    d: "Paste an AI Studio key in Settings. Each student has their own quota. Buddy uses tools; it will not dump an empty reply.",
+    d: "Add a free Gemini key in Settings so Buddy can help. Yours stays on your account.",
     kind: "gemini",
     path: "askualastudy.vercel.app/settings",
     nav: "Settings",
@@ -150,7 +150,7 @@ const SCENES: Scene[] = [
   },
   {
     t: "Email briefs",
-    d: "One daily mail of tomorrow’s items, one Sunday week-ahead. Empty windows skipped. Office hours omitted.",
+    d: "One daily mail of tomorrow’s items, one Sunday week ahead. Empty windows skipped. Office hours omitted.",
     kind: "mail",
     path: "askualastudy.vercel.app/settings",
     nav: "Settings",
@@ -272,10 +272,7 @@ function Screen({ kind }: { kind: Kind }) {
         <div className="text-sm font-semibold">Home</div>
         <Card className="bg-[#fff4d6]">
           <div className="text-[9px] uppercase tracking-wide text-[#8a5a00]">While you were away</div>
-          <div className="mt-1 text-[10px]">Stopped Tue 9:12 AM · ECON 1115 notes · MATH pset due Thu</div>
-        </Card>
-        <Card>
-          <div className="text-[10px] text-[#6b6458]">This is the stop snapshot, not a new session.</div>
+          <div className="mt-1 text-[10px]">You were away since Tue 9:12 AM. Calendar is up to date.</div>
         </Card>
       </div>
     );
@@ -305,7 +302,7 @@ function Screen({ kind }: { kind: Kind }) {
         <Card className="bg-[#fff4d6]">
           <div className="text-[10px]">Pset 3 · Oct 3 · calendar</div>
           <div className="text-[10px]">Ch. 5 reading · Oct 7 · calendar</div>
-          <div className="text-[10px]">Office hours Wed 4–5 · series</div>
+          <div className="text-[10px]">Office hours Wed 4 to 5 · series</div>
         </Card>
       </div>
     );
@@ -385,13 +382,13 @@ function Screen({ kind }: { kind: Kind }) {
         <div className="font-semibold">Connect Google Calendar</div>
         <Card>
           <p className="text-[10px] text-[#6b6458]">
-            Import every calendar you checked in Google — lectures, psets, the rest, not only the primary calendar.
+            Import every calendar you checked in Google: lectures, psets, the rest, not only the primary calendar.
           </p>
           <div className="mt-2 rounded-lg bg-[#b8860b] py-1.5 text-center text-[10px] font-medium text-[#111]">
             Connect Google (Calendar + Drive)
           </div>
         </Card>
-        <div className="text-[10px] text-[#6b6458]">Drive: Askuala → Files / Voice / outputs</div>
+        <div className="text-[10px] text-[#6b6458]">Drive: Askuala → Files / Voice</div>
       </div>
     );
   }
@@ -424,9 +421,9 @@ function Screen({ kind }: { kind: Kind }) {
       <div className="space-y-2">
         <div className="font-semibold">Study guide</div>
         <Card>
-          <div className="text-[10px] font-medium">Elasticity — lecture summary</div>
+          <div className="text-[10px] font-medium">Elasticity: lecture summary</div>
           <div className="mt-1 h-10 rounded bg-[#efe8d8]" />
-          <div className="mt-1 text-[9px] text-[#6b6458]">Supply / demand graph · PDF → Drive outputs</div>
+          <div className="mt-1 text-[9px] text-[#6b6458]">Supply / demand graph · PDF → Drive Files</div>
         </Card>
         <div className="flex gap-1 text-[9px]">
           <Chip on>Print</Chip>
@@ -467,7 +464,7 @@ function Screen({ kind }: { kind: Kind }) {
         <Card className="bg-[#fff4d6]">
           <div className="text-[10px] text-[#8a5a00]">Your AI Studio key</div>
           <div className="mt-1 h-7 rounded border border-[#e0d6c2] bg-white" />
-          <div className="mt-1 text-[9px] text-[#6b6458]">Saved on this login — not a shared class quota</div>
+          <div className="mt-1 text-[9px] text-[#6b6458]">Saved on this login: not a shared class quota</div>
         </Card>
       </div>
     );
@@ -478,7 +475,7 @@ function Screen({ kind }: { kind: Kind }) {
         <div className="font-semibold">Settings · Email</div>
         <Card>
           <div className="text-[10px]">☑ Daily digest · tomorrow’s items · 10:00 PM ET</div>
-          <div className="mt-1 text-[10px]">☑ Sunday week-ahead · 11:00 AM ET</div>
+          <div className="mt-1 text-[10px]">☑ Sunday week ahead · 11:00 AM ET</div>
           <div className="mt-1 text-[9px] text-[#6b6458]">No empty mail · office hours omitted</div>
         </Card>
       </div>
@@ -514,7 +511,7 @@ export function TourVideo({ compact = false }: { compact?: boolean; variant?: "p
 
   return (
     <div className={`overflow-hidden rounded-xl border border-[#e0d6c2] bg-[#fffdf8] text-[#1c1914] ${compact ? "p-2" : "p-3"}`}>
-      <p className="mb-2 text-sm font-medium text-[#8a5a00]">Screen tour — everything Askuala does</p>
+      <p className="mb-2 text-sm font-medium text-[#8a5a00]">Screen tour: everything Askuala does</p>
       <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-[#e0d6c2] bg-[#f6f1e6]">
         <AppChrome path={scene.path} nav={scene.nav} showNav={showNav}>
           <Screen kind={scene.kind} />
@@ -541,6 +538,17 @@ export function TourVideo({ compact = false }: { compact?: boolean; variant?: "p
         <div className="absolute bottom-0 left-0 z-20 h-0.5 bg-[#b8860b]" style={{ width: `${Math.max(pct, 4)}%` }} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="rounded-md px-2 py-1 text-xs text-[#8a5a00] disabled:opacity-40"
+          disabled={i === 0}
+          onClick={() => {
+            setPlaying(false);
+            setI((n) => Math.max(0, n - 1));
+          }}
+        >
+          Before
+        </button>
         <button type="button" className="rounded-md border border-[#e0d6c2] px-2 py-1 text-xs" onClick={() => setPlaying((p) => !p)}>
           {playing ? "Pause" : "Play"}
         </button>

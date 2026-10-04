@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "./auth";
+import { blobSuspendedMessage } from "./blob-status";
 import { readState, toClient, updateState } from "./store";
 import type { AppState } from "./types";
 
@@ -17,7 +18,7 @@ export function fail(err: unknown) {
   const message = err instanceof Error ? err.message : "Request failed";
   const blob = /file store \(Vercel Blob\) is paused|store has been suspended/i.test(message);
   const status = (err as { status?: number }).status === 401 ? 401 : blob ? 503 : 400;
-  return NextResponse.json({ error: message }, { status });
+  return NextResponse.json({ error: blob ? blobSuspendedMessage() : message }, { status });
 }
 
 export async function mutate(fn: (state: AppState, userId: string) => Promise<unknown> | unknown) {

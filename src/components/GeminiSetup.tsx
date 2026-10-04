@@ -35,7 +35,7 @@ export function GeminiSetup({ force = false }: { force?: boolean }) {
       ) : (
         <>
           <p className="mt-1 text-muted">
-            Askuala does not share a class-wide Gemini quota. Each student uses a free Google AI Studio key on their own account. The host’s env key is not used for chat.
+            Buddy uses your own free Gemini key. Add it once: classmates do not share yours.
           </p>
           <ol className="mt-3 list-decimal space-y-2 pl-5">
             <li>
@@ -51,7 +51,7 @@ export function GeminiSetup({ force = false }: { force?: boolean }) {
             <li>Paste it below (or in Settings) and Save. You can replace it later the same way.</li>
           </ol>
           <p className="mt-2 text-muted">
-            If Studio says the key is restricted, create an unrestricted key for Gemini. If a model is busy, send again — the app tries another Gemini model on <em>your</em> key.
+            If Studio says the key is restricted, create an unrestricted key for Gemini. If a model is busy, send again: the app tries another Gemini model on <em>your</em> key.
           </p>
         </>
       )}

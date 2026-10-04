@@ -140,7 +140,7 @@ export function CourseEditor({
                 </option>
               ))}
             </select>
-            <span className="mt-1 block text-xs text-muted">Year 1 is Fall 2026 / Spring 2027. The syllabus “Fall 2026” line sets term and calendar year; Years 1–4 map that onto 2026–2030.</span>
+            <span className="mt-1 block text-xs text-muted">Year 1 is Fall 2026 / Spring 2027. The syllabus “Fall 2026” line sets term and calendar year; Years 1 to 4 map that onto 2026 to 2030.</span>
           </label>
           <label className="block text-sm">
             Color
@@ -165,7 +165,7 @@ export function CourseEditor({
             className="mt-1 min-h-16 w-full rounded-lg bg-input p-2"
             value={draft.officeHours}
             onChange={(e) => set("officeHours", e.target.value)}
-            placeholder="Wed 4:00–5:00pm LC 101"
+            placeholder="Wed 4:00 to 5:00pm LC 101"
           />
           <span className="mt-1 block text-xs text-muted">Saved onto the calendar as a repeating series (through the end of term), not just this text field.</span>
         </label>

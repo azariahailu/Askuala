@@ -290,5 +290,5 @@ function esc(s: string) {
 export function studyGraphPlain(spec: StudyGraphSpec) {
   const curves = spec.curves.map((c) => `${c.label}: ${c.points.map((p) => `(${p.x}, ${p.y})`).join(" → ")}`).join("; ");
   const eq = spec.eq.map((e) => `${e.label} at (${e.at.x}, ${e.at.y})`).join("; ");
-  return [spec.title, `${spec.yLabel} vs ${spec.xLabel}`, curves, eq, spec.read].filter(Boolean).join(" — ");
+  return [spec.title, `${spec.yLabel} vs ${spec.xLabel}`, curves, eq, spec.read].filter(Boolean).join(": ");
 }

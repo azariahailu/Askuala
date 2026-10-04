@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/auth";
 import { APP_NAME, ASSISTANT_NAME } from "@/lib/brand";
 import { TourVideo } from "@/components/TourVideo";
 
@@ -24,7 +26,8 @@ function PublicBar() {
   );
 }
 
-export default function MarketingPage() {
+export default async function MarketingPage() {
+  if (await getSessionUser()) redirect("/home");
   return (
     <div className="min-h-dvh bg-canvas text-ink">
       <PublicBar />
@@ -34,12 +37,12 @@ export default function MarketingPage() {
           <div>
             <h1 className="brand text-4xl font-semibold text-gold-2">{APP_NAME}</h1>
             <p className="mt-2 text-lg text-muted">
-              Your courses, calendar, notes, and {ASSISTANT_NAME} — an assistant that can read and edit your planner.
+              Your courses, calendar, notes, and {ASSISTANT_NAME}: who can update your planner when you ask.
             </p>
           </div>
         </div>
         <p className="text-sm text-muted">
-          Works on phone, tablet, and computer. After you sign in, add this site as an app (Safari Share → Add to Home Screen, or Chrome → Install app). The {APP_NAME} logo is the icon.
+          Works on your phone or computer. After you sign in, you can add Askuala to your home screen.
         </p>
         <div className="flex flex-wrap gap-3">
           <Link href="/login" className="rounded-lg bg-gold px-5 py-3 font-medium text-on-gold">
@@ -55,10 +58,10 @@ export default function MarketingPage() {
         <TourVideo variant="public" />
         <ul className="grid gap-3 sm:grid-cols-2">
           {[
-            "Syllabus → calendar, including dated work and class readings",
-            "Urgent 48 hours, majors in 2 weeks, work-by-week",
-            "Your Gemini key, your Google Calendar and Drive",
-            "One daily digest and one Sunday week-ahead email",
+            "Drop in a syllabus: class times, homework, and readings go on your calendar",
+            "What’s due in the next 48 hours, big assignments in two weeks, and work by week",
+            "Connect Google Calendar. Study guides can land in your Drive when you want them there",
+            "One email for tomorrow, one on Sunday for the week ahead",
           ].map((item) => (
             <li key={item} className="rounded-xl border border-line bg-surface p-4 text-sm">
               {item}

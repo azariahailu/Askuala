@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     if (googleError) {
       const raw = googleError.replace(/\+/g, " ");
       if (/access_denied|cancelled|canceled/i.test(raw)) {
-        throw new Error("Google cancelled or blocked this sign-in. Use email below, or try Google again. Calendar and Drive are connected later in Settings — not on this first click.");
+        throw new Error("Google cancelled or blocked this sign-in. Use email below, or try Google again. Calendar and Drive are connected later in Settings: not on this first click.");
       }
       throw new Error(raw);
     }

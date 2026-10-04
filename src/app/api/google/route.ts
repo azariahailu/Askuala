@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fail, mutate, withUserState } from "@/lib/api";
+import { backfillDrive } from "@/lib/google-drive";
 import { authUrl, clearGoogleSession, GOOGLE_RECONNECT_MSG, googleConfigured, isInsufficientScope, isInvalidGrant, oauthOrigin, syncGoogle } from "@/lib/google";
 import { ensureGoogleAppLoaded } from "@/lib/google-app";
 
@@ -26,10 +27,17 @@ export async function GET(req: Request) {
 
 export async function POST() {
   try {
-    return await mutate(async (state) => {
+    return await mutate(async (state, userId) => {
       try {
         const result = await syncGoogle(state);
-        if (result && "ok" in result && result.ok) state.settings.google.schoolCalHintDone = true;
+        if (result && "ok" in result && result.ok) {
+          state.settings.google.schoolCalHintDone = true;
+          try {
+            await backfillDrive(state, userId, { limit: 3 });
+          } catch {
+            /* calendar sync still counts */
+          }
+        }
         return result;
       } catch (err) {
         if (isInvalidGrant(err) || isInsufficientScope(err)) {

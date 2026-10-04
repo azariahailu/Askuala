@@ -12,24 +12,24 @@ export type PlannedCourse = {
 
 const TERM_HEAD = /^\s*(FALL|SPRING|SUMMER)\s+(20\d{2})\b/i;
 const CODED =
-  /^((?:S&DS)|[A-Z]{2,6})\s+(\d{3,4}[A-Z]?)(?:\s*\/\s*(?:S&DS|[A-Z]{2,6})\s+\d{4})?\s+[—–-]\s+(.+)$/;
+  /^((?:S&DS)|[A-Z]{2,6})\s+(\d{3,4}[A-Z]?)(?:\s*\/\s*(?:S&DS|[A-Z]{2,6})\s+\d{4})?\s+[:  to -]\s+(.+)$/;
 
 const PLACEHOLDERS: { test: RegExp; name: string; kind: string }[] = [
   { test: /^hu-designated first-year seminar\b/i, name: "Hu-designated First-Year Seminar", kind: "HU FYS" },
   { test: /^hu-designated course\b/i, name: "Hu-designated course", kind: "HU ELEC" },
   {
     test: /^dr completer\b/i,
-    name: "DR completer — whichever of Sc/WR is still at 1-of-2 (ANTH 0418 or PHIL 0060)",
+    name: "DR completer: whichever of Sc/WR is still at 1-of-2 (ANTH 0418 or PHIL 0060)",
     kind: "DR COMP",
   },
   {
-    test: /^optional\s+[—–-]\s*career elective\b/i,
-    name: "Optional — career elective (ECON 2251 / ECON 4419 / PSYC 2538 / NSCI 2380)",
+    test: /^optional\s+[:  to -]\s*career elective\b/i,
+    name: "Optional: career elective (ECON 2251 / ECON 4419 / PSYC 2538 / NSCI 2380)",
     kind: "CAREER",
   },
   {
     test: /^s&ds graduate elective\b/i,
-    name: "S&DS graduate elective — confirm with DUS",
+    name: "S&DS graduate elective: confirm with DUS",
     kind: "SDS GRAD",
   },
   { test: /^graduate s&ds elective\b/i, name: "Graduate S&DS elective", kind: "grad-ma" },
@@ -61,7 +61,7 @@ export function looksLikeDegreeRoadmap(text: string) {
 
 export function parseDegreeRoadmap(text: string): PlannedCourse[] {
   const cut = text.split(
-    /\n(?=Distributional Requirements Tracker|BS\/MA Graduate Course Tracker|Quant Research Recruiting Timeline|Open Questions|YEAR 3 — 4 COURSES|YEAR 4 — 4 COURSES)/i,
+    /\n(?=Distributional Requirements Tracker|BS\/MA Graduate Course Tracker|Quant Research Recruiting Timeline|Open Questions|YEAR 3: 4 COURSES|YEAR 4: 4 COURSES)/i,
   )[0];
   const lines = cut.split(/\r?\n/).map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean);
   const out: PlannedCourse[] = [];

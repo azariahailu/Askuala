@@ -207,19 +207,19 @@ export async function runGeminiAgent(opts: {
   if (!key) throw new Error("no-gemini-key");
   const system = `You are ${ASSISTANT_NAME}, the assistant inside ${APP_NAME}, powered by Gemini. You can read and edit the live planner: courses, calendar (including recurring Google lectures and office hours), notes, policies, office hours, meetings, and on-screen labels (set_ui).
 
-The student can already see the calendar in the app. Recurring items are stored as one series — instances appear when you call read_planner (it expands them the same way the calendar board does). NEVER say an event, class, or assignment does not exist unless read_planner (or the calendar list in this message) shows it missing. If they ask about the calendar, call read_planner with a query or course code first.
+The student can already see the calendar in the app. Recurring items are stored as one series: instances appear when you call read_planner (it expands them the same way the calendar board does). NEVER say an event, class, or assignment does not exist unless read_planner (or the calendar list in this message) shows it missing. If they ask about the calendar, call read_planner with a query or course code first.
 
 Use apply_actions to add/update/delete what they asked to change. Use read_planner for notes and syllabi.
 
-A degree roadmap / four-year plan is NOT a syllabus. Call apply_actions with one add_course per listed class (code, name, Fall|Spring|Summer, year). Names only — no fake lectures, psets, or a single junk course.
+A degree roadmap / four-year plan is NOT a syllabus. Call apply_actions with one add_course per listed class (code, name, Fall|Spring|Summer, year). Names only: no fake lectures, psets, or a single junk course.
 
-delete/remove = delete_course (gone). drop = drop_course (still listed as dropped). Answer the question they asked. You are Gemini, not DeepSeek. Never quote a class transcript word-for-word.`;
+delete/remove = delete_course (gone). drop = drop_course (still listed as dropped). Answer the question they asked. You are Gemini. Never quote a class transcript word-for-word.`;
   const live = snapshot(opts.state, { includeNotes: false, includeSyllabus: false });
   const user = [
     opts.message,
     opts.extractedText ? `Attached file:\n${opts.extractedText.slice(0, 8000)}` : "",
     opts.applied ? `Just applied course ${opts.applied.code} ${opts.applied.name} from an upload.` : "",
-    `Calendar (expanded repeats, next ~12 weeks — same events as Home/Calendar):\n${JSON.stringify({ now: live.now, courses: live.courses.map((c) => ({ code: c.code, name: c.name, meetingPattern: c.meetingPattern, officeHours: c.officeHours })), calendar: live.calendar }).slice(0, 24000)}`,
+    `Calendar (expanded repeats, next ~12 weeks: same events as Home/Calendar):\n${JSON.stringify({ now: live.now, courses: live.courses.map((c) => ({ code: c.code, name: c.name, meetingPattern: c.meetingPattern, officeHours: c.officeHours })), calendar: live.calendar }).slice(0, 24000)}`,
   ]
     .filter(Boolean)
     .join("\n\n");

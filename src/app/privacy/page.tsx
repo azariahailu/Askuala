@@ -16,16 +16,13 @@ export default function PrivacyPage() {
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-10 text-sm leading-relaxed">
         <h1 className="text-2xl font-semibold">Privacy</h1>
         <p>
-          {APP_NAME} stores your planner (courses, events, notes, chat, settings) per login. On the hosted site that data lives in the host’s cloud database (not on someone else’s laptop). Files you upload are copied to <strong>your</strong> Google Drive under Askuala → Files → uploads or outputs, and voice under Voice recordings, when you connect Google with Drive access.
+          {APP_NAME} keeps your courses, calendar, notes, and chat on your own login. Classmates do not see your planner.
         </p>
         <p>
-          Google sign-in uses Calendar and Drive (files you create in Askuala). {ASSISTANT_NAME} uses the Gemini API key you paste in Settings — that key stays on your account and is not a shared class quota. Digests go to the email you logged in with. The sending mailbox is configured only by the site admin.
+          Google sign in can connect your Calendar and Drive. Study guides and voice notes you choose to keep in Drive go to an Askuala folder in <strong>your</strong> Drive. {ASSISTANT_NAME} uses the Gemini key you add in Settings: it stays on your account.
         </p>
         <p>
-          You stay signed in on this browser as long as the browser allows (about 400 days — Chrome will not keep a cookie forever). You can sign out anytime. The admin account can disable or delete student accounts. Do not put secrets in syllabi you upload if you do not want them in Drive or in chat history.
-        </p>
-        <p>
-          Questions: {APP_NAME} host — buddy.askuala@gmail.com.
+          Email briefs go to the address you signed in with. You can sign out anytime. Questions: buddy.askuala@gmail.com.
         </p>
         <Link href="/" className="text-gold-2 underline">
           Back

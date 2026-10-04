@@ -69,7 +69,7 @@ function mergeKeepAdd(existing: string, addition: string, directions: string) {
     if (fences?.length && (extra.length < 40 || looksLikeFullGuide(extra))) extra = fences.join("\n\n");
   }
   if (extra.length < 40) {
-    throw new Error("Gemini tried to replace your study guide instead of adding. Your original was kept — rebuild again.");
+    throw new Error("Gemini tried to replace your study guide instead of adding. Your original was kept: rebuild again.");
   }
   if (/graph/i.test(directions) && /^## Graphs\b/m.test(existing)) {
     return insertIntoHeading(existing, "## Graphs", extra);
@@ -114,7 +114,7 @@ Course: ${course?.code || ""} ${course?.name || ""}`,
         {
           role: "user",
           content: [
-            `Existing guide headings (already written — do not repeat):\n${headingsOf(existing) || "(none)"}`,
+            `Existing guide headings (already written: do not repeat):\n${headingsOf(existing) || "(none)"}`,
             directions && `Add only:\n${directions}`,
             opts.transcript && `Transcript (for the new topic only):\n${opts.transcript.slice(0, 8000)}`,
             opts.extraMaterials && `Files:\n${opts.extraMaterials.slice(0, 6000)}`,
@@ -147,7 +147,7 @@ Course: ${course?.code || ""} ${course?.name || ""}`,
     opts.title && `Session title: ${opts.title}`,
     opts.body && `Student notes:\n${opts.body}`,
     opts.transcript && `Raw transcript (source only, do not echo):\n${opts.transcript.slice(0, 12000)}`,
-    opts.extraMaterials && `Uploaded files (source material — teach from this, do not dump it):\n${opts.extraMaterials.slice(0, 16000)}`,
+    opts.extraMaterials && `Uploaded files (source material: teach from this, do not dump it):\n${opts.extraMaterials.slice(0, 16000)}`,
     existing && directions && `Current study guide draft (edit only what they asked):\n${existing.slice(0, 14000)}`,
     directions && `Student directions (follow these):\n${directions.slice(0, 6000)}`,
   ]
@@ -159,7 +159,7 @@ Course: ${course?.code || ""} ${course?.name || ""}`,
     [
       {
         role: "system",
-        content: `You are the course tutor for ${course?.code || "this class"} (${course?.name || "college course"}). Write a FULL lecture-quality STUDY GUIDE — the notes a strong student would keep, not a short recap.
+        content: `You are the course tutor for ${course?.code || "this class"} (${course?.name || "college course"}). Write a FULL lecture-quality STUDY GUIDE: the notes a strong student would keep, not a short recap.
 
 Student directions:
 - If they name extra points or topics and did not say to keep the current guide, include those in a full new guide.
@@ -168,7 +168,7 @@ Student directions:
 - Never refuse extra topics because they were not in the recording.
 
 Length and depth:
-- Typically 800–1800 words. Short bullet dumps are not acceptable.
+- Typically 800 to 1800 words. Short bullet dumps are not acceptable.
 - Teach mechanisms, not labels. For each idea: definition, intuition, what changes, what stays fixed, and a concrete example (numbers if the lecture had them).
 - Connect claims: cause → graph/equation → prediction. Say what would falsify the claim.
 - Use the syllabus to place the session (unit, what it prepares them for). No invented due dates. Do not paste the syllabus.
@@ -179,7 +179,7 @@ Transcript and files:
 
 Math: dollar-delimited LaTeX (inline and display). GitHub-flavored markdown tables.
 
-Graphs and diagrams (economics, physics, calc, stats, chemistry — any course that uses them):
+Graphs and diagrams (economics, physics, calc, stats, chemistry: any course that uses them):
 - If the session uses a graph, plot, or shift (supply/demand, cost, PPF, IS-LM, indifference, budget, tax wedge, surplus, MC/ATC, labor market, externalities, Lorenz, phase diagram, free-body, etc.), you MUST draw it. Do not only describe it in words.
 - NEVER use gnuplot, matplotlib, mermaid, tikz, SVG, HTML, or Python. Askuala only draws fences whose language is exactly \`graph\` (not \`graph\` with \`lang: gnuplot\` inside).
 - Use one fenced block per figure, language exactly \`graph\`, in this line format:
@@ -201,7 +201,7 @@ Rules for graphs:
 - Original curves solid (D, S, MC). Shifted curves dashed with a prime (D′, S′).
 - Mark equilibria (E, E′) and any tax/wedge points.
 - Two points make a straight line; add more points for curves (U-shaped cost, bowed PPF).
-- After each figure, write 4–8 sentences: what each axis means, slope intuition, the shock, comparative statics (what happens to P and Q or the analogous pair), and surplus/welfare or constraint if it was in the lecture.
+- After each figure, write 4 to 8 sentences: what each axis means, slope intuition, the shock, comparative statics (what happens to P and Q or the analogous pair), and surplus/welfare or constraint if it was in the lecture.
 - If this session truly has no figure, omit the Graphs heading. Do not invent a decorative graph.
 
 Use these headings:
@@ -220,7 +220,7 @@ Use these headings:
     true,
   );
   if (text && existing.length > 400 && text.length < existing.length * 0.55 && directions) {
-    throw new Error("Gemini tried to shrink your study guide. The original was kept — try more specific directions.");
+    throw new Error("Gemini tried to shrink your study guide. The original was kept: try more specific directions.");
   }
   if (text && !looksLikeEcho(text, opts.transcript) && text.length > 80) return text;
   throw new Error(friendlyGeminiError(error || "Gemini did not write a study guide"));

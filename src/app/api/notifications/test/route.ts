@@ -28,7 +28,7 @@ export async function POST() {
       return NextResponse.json(
         {
           error:
-            "Gmail rejected the sender login (535). Use the sender Gmail’s address as SMTP user, and a 16-character App Password — not the normal Gmail password. Google Account (that sender) → Security → 2-Step Verification ON → App passwords → Mail / Other → copy the password. Spaces in it are fine; we strip them. Then Save and send test again.",
+            "Gmail rejected the sender login (535). Use the sender Gmail’s address as SMTP user, and a 16-character App Password: not the normal Gmail password. Google Account (that sender) → Security → 2-Step Verification ON → App passwords → Mail / Other → copy the password. Spaces in it are fine; we strip them. Then Save and send test again.",
         },
         { status: 400 },
       );
