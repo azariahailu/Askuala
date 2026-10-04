@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { SignInGoogle } from "@/components/SignInGoogle";
 import { GeminiSetup } from "@/components/GeminiSetup";
 import { PhoneAccess } from "@/components/PhoneAccess";
+import { SchoolCalGuide } from "@/components/SchoolCalGuide";
 import { ADMIN_EMAIL } from "@/lib/admin";
 import type { AlertRule } from "@/lib/types";
 
@@ -99,13 +100,13 @@ export default function SettingsPage() {
       <section className="rounded-xl border border-line bg-surface p-4 space-y-3">
         <h2 className="font-medium">Notifications</h2>
         <p className="text-sm text-muted">
-          Askuala sends <strong>one</strong> daily email (everything tomorrow, listed together) and one Sunday week-ahead email — never a separate mail per event. Mail goes to <strong>{data?.me?.email || "the address you logged in with"}</strong>. Calendar pings are set on each event.
+          Askuala sends <strong>one</strong> daily email (everything tomorrow, listed together) and one Sunday week ahead email: never a separate mail per event. Mail goes to <strong>{data?.me?.email || "the address you logged in with"}</strong>. Calendar pings are set on each event.
         </p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} /> Send email
         </label>
         <label className="flex flex-wrap items-center gap-2 text-sm">
-          <input type="checkbox" checked={digestDaily} onChange={(e) => setDigestDaily(e.target.checked)} /> Daily snapshot of tomorrow at
+          <input type="checkbox" checked={digestDaily} onChange={(e) => setDigestDaily(e.target.checked)} /> Daily email of tomorrow at
           <input
             type="time"
             className="bg-input p-1"
@@ -118,7 +119,7 @@ export default function SettingsPage() {
           />
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={digestWeekly} onChange={(e) => setDigestWeekly(e.target.checked)} /> Sunday 11:00 AM — the week ahead
+          <input type="checkbox" checked={digestWeekly} onChange={(e) => setDigestWeekly(e.target.checked)} /> Sunday 11:00 AM: the week ahead
         </label>
         <p className="text-sm">Google “Remind me” lead times (email/popup on the event in Google Calendar). These do not send extra Askuala emails.</p>
         {alerts.map((a, i) => (
@@ -152,19 +153,26 @@ export default function SettingsPage() {
         <h2 className="font-medium">Google Calendar and Drive</h2>
         <p className="text-sm text-muted">
           {data?.settings.googleConnected
-            ? `Google account: ${data.settings.googleEmail}. Calendar syncs here. Notes copy into Drive as Askuala → Files → uploads; study-guide PDFs into Files → outputs; recordings into Voice recordings; then year / term / course.`
+            ? `Google account: ${data.settings.googleEmail}. Calendar syncs here. Drive is Askuala → year → term → course → Files and Voice recordings. Uploads stay in Askuala, not Drive.`
             : data?.settings.appGoogleReady
-              ? "Connect the Google account that owns your calendars and Drive (your college or personal Gmail). Do not sign in with a dedicated app mailbox."
-              : "Google sign-in isn’t available right now. You can still use the calendar in this app."}
+              ? "Connect the Google account that can see your class calendar (college if it works, or personal after you subscribe the college calendar). Do not use a dedicated app mailbox."
+              : "Google sign in isn’t available right now. You can still use the calendar in this app."}
         </p>
         {data?.settings.googleConnected && !data.settings.driveReady && (
           <p className="text-sm text-gold-2">
-            Calendar is connected, but Drive is not allowed yet. Click Connect Google again and accept Drive (and Calendar) so Askuala can create those folders. Enable the Google Drive API on /setup if the host has not.
+            Calendar is connected, but Drive is not allowed yet. Connect Google again and accept Drive so study guides can go to your Drive.
           </p>
         )}
-        {data?.settings.driveReady && <p className="text-sm text-gold-2">Drive folders are ready. New uploads go there automatically. Voice files are named like 2026-09-23 · note title.</p>}
+        {data?.settings.driveReady && (
+          <p className="text-sm text-gold-2">
+            Study guides and voice notes go to Drive under <strong>Askuala</strong> → year → term → course. Lecture files stay in Askuala.
+          </p>
+        )}
+        {!data?.settings.googleConnected && (
+          <SchoolCalGuide className="text-sm text-muted" />
+        )}
         <p className="text-sm text-muted">
-          On Unified calendar, use <strong>Connect / Sync Google</strong> (top right). That is the same action as Connect here. After Google allows Calendar, that button says Sync — pull latest from Google. Your Askuala events stay even if you have not synced yet.
+          On Unified calendar, use <strong>Connect / Sync Google</strong> (top right). That is the same action as Connect here. After Google allows Calendar, that button says Sync: pull latest from Google. Your Askuala events stay even if you have not synced yet.
         </p>
         {data?.settings.appGoogleReady && (
           <div className="flex flex-wrap gap-3">
@@ -207,7 +215,7 @@ export default function SettingsPage() {
           From {smtpUser || ADMIN_EMAIL} → To each student’s login email
         </p>
         <p className="text-sm text-muted">
-          Use a Gmail App Password (16 letters) for buddy.askuala@gmail.com. Everyday Gmail password fails with 535. Save SMTP here or as SMTP_* env on Vercel.
+          Use a Gmail App Password (16 letters) for buddy.askuala@gmail.com. The everyday Gmail password will not work.
         </p>
         <ol className="list-decimal space-y-2 pl-5 text-sm text-muted">
           <li>Sender login = buddy.askuala@gmail.com</li>

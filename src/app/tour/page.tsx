@@ -16,9 +16,7 @@ export default function TourPage() {
       </header>
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
         <h1 className="text-2xl font-semibold">Tour</h1>
-        <p className="text-sm text-muted">
-          Press Play. This is a light-theme, screen-recording-style walkthrough of everything Askuala does — sign-in, Home, courses, syllabus, calendar, Google, notes, Buddy, digests, and install. Not a filmed MP4.
-        </p>
+        <p className="text-sm text-muted">Press Play for a short walkthrough of Askuala.</p>
         <TourVideo variant="public" />
         <Link href="/login" className="inline-block rounded-lg bg-gold px-4 py-2 text-on-gold">
           Sign in

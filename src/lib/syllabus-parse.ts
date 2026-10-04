@@ -46,7 +46,7 @@ function parseClock(raw: string, fallbackH = 13, fallbackM = 0) {
 
 function examClockFromNote(note: string, fallback: { h: number; min: number }, fallbackEnd: { h: number; min: number }) {
   const range = note.match(
-    /(?:from\s+)?(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?\s*[-–to]+\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)/i,
+    /(?:from\s+)?(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|to)\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)/i,
   );
   if (range) {
     const mer = range[4] || range[2] || "pm";
@@ -273,7 +273,7 @@ export function datedAssignmentEvents(blob: string, year: number, term: TermName
     const line = lines[i];
     const head = line.match(DATE_HEAD);
     if (!head) continue;
-    let rest = line.slice(head[0].length).replace(/^[\s:\-–\t]+/, "").trim();
+    let rest = line.slice(head[0].length).replace(/^[\s:\-\t]+/, "").trim();
     let raw = line;
     if ((!rest || rest.length < 4) && lines[i + 1] && isWorkLabel(lines[i + 1])) {
       rest = lines[i + 1];
@@ -352,7 +352,7 @@ function sessionReadingEvents(blob: string, year: number, term: TermName, code: 
     const head = line.match(DATE_HEAD);
     if (head) {
       flush();
-      const rest = line.slice(head[0].length).replace(/^[\s:\-–]+/, "").trim();
+      const rest = line.slice(head[0].length).replace(/^[\s:\-]+/, "").trim();
       cur = { month: head[2], day: Number(head[3]), year: head[4], bits: rest ? [rest] : [] };
       continue;
     }
@@ -445,7 +445,7 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
     canvasHead?.[3]?.trim() ||
     englishLine?.[2]?.trim() ||
     blob.match(/Welcome to [^:]+:\s*([^\n!]+)/i)?.[1]?.trim() ||
-    blob.match(new RegExp(`${code.replace(/\s+/g, "\\s*")}\\s*[:\\-–]\\s*([^\\n|]{8,80})`, "i"))?.[1]?.trim() ||
+    blob.match(new RegExp(`${code.replace(/\s+/g, "\\s*")}\\s*[:\\-]\\s*([^\\n|]{8,80})`, "i"))?.[1]?.trim() ||
     "Untitled course"
   ).replace(/\s+/g, " ");
 
@@ -473,7 +473,7 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
   const emails = [...blob.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)].map((m) => m[0]);
   const meeting =
     blob.match(/Class:\s*([^\n]+)/i)?.[1]?.trim() ||
-    blob.match(/(Monday and Wednesday|Mon(?:day)?\/Wed(?:nesday)?|MW|TR|TTh|MWF)\s+\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?/i)?.[0] ||
+    blob.match(/(Monday and Wednesday|Mon(?:day)?\/Wed(?:nesday)?|MW|TR|TTh|MWF)\s+\d{1,2}:\d{2}\s*[- to ]\s*\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?/i)?.[0] ||
     "";
   const locFromClass = meeting.match(/,\s*([A-Z]{1,4}\s*\d{2,4}[A-Z]?)\b/);
   const location =
@@ -485,7 +485,7 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
   const classDays = meetingDays(meeting);
   const mer = /\bpm\b/i.test(meeting) ? "pm" : /\bam\b/i.test(meeting) ? "am" : "";
   const classClock = parseClock(`${meeting.match(/(\d{1,2}:\d{2})/)?.[1] || "13:05"} ${mer}`.trim());
-  const classEndClock = parseClock(`${meeting.match(/[-–]\s*(\d{1,2}:\d{2})/)?.[1] || "14:20"} ${mer}`.trim());
+  const classEndClock = parseClock(`${meeting.match(/[- to ]\s*(\d{1,2}:\d{2})/)?.[1] || "14:20"} ${mer}`.trim());
 
   const events: ExtractedEvent[] = [];
   const push = (e: ExtractedEvent) => {
@@ -505,7 +505,7 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
       .trim();
     const details = [`Lecture ${lm[1]}`, topic, topic.match(/chapter/i) ? `Read: ${topic}` : ""]
       .filter(Boolean)
-      .join(" — ");
+      .join(": ");
     const start = at(year, mi, day, classClock.h, classClock.min);
     const end = at(year, mi, day, classEndClock.h, classEndClock.min);
     push({
@@ -522,9 +522,9 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
   }
 
   const midtermRe =
-    /\bMIDTERM\s*(\d+)\s*[:–—-]\s*(?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|October|November|December)\b([^\n]*)/gi;
+    /\bMIDTERM\s*(\d+)\s*[: to : -]\s*(?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|October|November|December)\b([^\n]*)/gi;
   const midtermReAlt =
-    /\bMIDTERM\s*(\d+)\s*[:–—-]\s*(?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+)?(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?([^\n]*)/gi;
+    /\bMIDTERM\s*(\d+)\s*[: to : -]\s*(?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+)?(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?([^\n]*)/gi;
   while ((lm = midtermRe.exec(blob))) {
     const mi = monthIndex(lm[3]);
     const clocks = examClockFromNote(lm[4] || "", classClock, classEndClock);
@@ -558,7 +558,7 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
     });
   }
 
-  const finalBlock = blob.match(/FINAL EXAM[:\s][\s\S]{0,500}/i)?.[0] || blob.match(/\bFINAL EXAM\s*[–—:-][^\n]+/i)?.[0] || "";
+  const finalBlock = blob.match(/FINAL EXAM[:\s][\s\S]{0,500}/i)?.[0] || blob.match(/\bFINAL EXAM\s*[ to : :-][^\n]+/i)?.[0] || "";
   const finalDate = finalBlock.match(
     /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(20\d{2}))?(?:[^\n]{0,40}?(?:at\s*)(\d{1,2}\s*(?::\d{2})?\s*(?:am|pm)))?/i,
   );
@@ -610,7 +610,7 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
 
   const officeHours: ExtractedCourse["officeHours"] = [];
   const dropIn = blob.match(
-    /Drop-in hours\s*[–\-]\s*(Mondays?)\s+(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}(?::\d{2})?)/i,
+    /Drop-in hours\s*[ to \-]\s*(Mondays?)\s+(\d{1,2}:\d{2})\s*[ to \-]\s*(\d{1,2}(?::\d{2})?)/i,
   );
   if (dropIn) {
     const s = parseClock(dropIn[2], 14, 40);
@@ -621,11 +621,11 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
       days: ["MO"],
       start: `${String(s.h).padStart(2, "0")}:${String(s.min).padStart(2, "0")}`,
       end: `${String(e.h).padStart(2, "0")}:${String(e.min).padStart(2, "0")}`,
-      notes: `${instructor || "Instructor"} drop-in office hours Mondays ${dropIn[2]}–${dropIn[3]} at ${blob.match(/87 Trumbull[^,\n]*/i)?.[0] || location}. No appointment needed. Also usually 15 minutes before/after lecture.`,
+      notes: `${instructor || "Instructor"} drop-in office hours Mondays ${dropIn[2]} to ${dropIn[3]} at ${blob.match(/87 Trumbull[^,\n]*/i)?.[0] || location}. No appointment needed. Also usually 15 minutes before/after lecture.`,
     });
   } else {
     const oh = blob.match(
-      /Office Hours:\s*([A-Za-z]{1,9})[^\n]{0,20}?(\d{1,2}(?::\d{2})?)\s*[-–]\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?/i,
+      /Office Hours:\s*([A-Za-z]{1,9})[^\n]{0,20}?(\d{1,2}(?::\d{2})?)\s*[- to ]\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?/i,
     );
     if (oh) {
       const mer = (oh[4] || "pm").replace(/\./g, "");
@@ -639,7 +639,7 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
         days: days.length ? days : ["WE"],
         start: `${String(s.h).padStart(2, "0")}:${String(s.min).padStart(2, "0")}`,
         end: `${String(e.h).padStart(2, "0")}:${String(e.min).padStart(2, "0")}`,
-        notes: `${instructor || "Instructor"} office hours ${oh[1]} ${oh[2]}–${oh[3]} ${mer} at ${loc}.`,
+        notes: `${instructor || "Instructor"} office hours ${oh[1]} ${oh[2]} to ${oh[3]} ${mer} at ${loc}.`,
       });
     }
   }
@@ -680,7 +680,7 @@ export function parseSyllabus(text: string, extra = ""): Extraction {
     },
     events,
     notes: [],
-    summary: `Parsed ${code} — ${name} (${term} ${year}): ${events.length} calendar items (lectures, exams, weekly work, office hours).`,
+    summary: `Parsed ${code}: ${name} (${term} ${year}): ${events.length} calendar items (lectures, exams, weekly work, office hours).`,
   };
 }
 

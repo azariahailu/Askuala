@@ -90,5 +90,5 @@ export function officeHourTitle(holder: string, courseCode: string, extra = "") 
   const who = holder.trim() || "Instructor";
   const code = courseCode.trim() || "Course";
   const suffix = extra.trim() ? ` · ${extra.trim()}` : "";
-  return `${who} — Office Hours · ${code}${suffix}`;
+  return `${who}: Office Hours · ${code}${suffix}`;
 }

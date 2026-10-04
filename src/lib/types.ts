@@ -100,6 +100,12 @@ export type CourseNote = {
   audioPath: string | null;
   audioDriveUrl?: string;
   studyPdfDriveUrl?: string;
+  /** Rendered print-style PDF stored for Drive (graphs/tables), not the raw-text fallback. */
+  studyPdfPath?: string;
+  /** Bump to recapture Drive PDFs after a renderer fix. */
+  studyPdfFmt?: number;
+  /** When the current study guide text was last written. Drive PDF waits 12 hours after this. */
+  summaryReadyAt?: string;
   attachments: Attachment[];
   createdAt: string;
   updatedAt: string;
@@ -125,6 +131,9 @@ export type Course = {
   color: string;
   googleColorId: string;
   googleCalendarId: string | null;
+  /** Live Drive folder for this course (Askuala → year → term → this name). */
+  driveFolderId?: string;
+  driveFolderName?: string;
   policies: Policy[];
   extraContext: string;
   /** Repeating office hours / extra times, applied to the calendar on save. */

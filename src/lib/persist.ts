@@ -116,16 +116,26 @@ async function r2Read(key: string): Promise<Buffer | null> {
   }
 }
 
-async function r2Write(key: string, body: Buffer, contentType: string) {
+async function r2Write(key: string, body: Buffer, contentType: string, exclusive = false) {
   const { client, bucket } = r2();
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    }),
-  );
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        ...(exclusive ? { IfNoneMatch: "*" } : {}),
+      }),
+    );
+    return true;
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    if (exclusive && (status === 412 || /PreconditionFailed|UnknownError/i.test(err instanceof Error ? err.message : ""))) {
+      return false;
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  }
 }
 
 async function r2Delete(key: string) {
@@ -243,4 +253,25 @@ export async function persistReadJson<T>(key: string): Promise<T | null> {
 
 export async function persistWriteJson(key: string, value: unknown) {
   await persistWrite(key, JSON.stringify(value), "application/json");
+}
+
+/** True if this process created the key. False if it already existed. */
+export async function persistCreateExclusive(key: string, body: string) {
+  const buf = Buffer.from(body);
+  if (usesR2()) return r2Write(key, buf, "text/plain", true);
+  if (usesBlob()) {
+    const existing = await persistRead(key);
+    if (existing) return false;
+    await persistWrite(key, buf, "text/plain");
+    return true;
+  }
+  const dest = path.join(ROOT, key);
+  await fs.mkdir(path.dirname(dest), { recursive: true });
+  try {
+    await fs.writeFile(dest, buf, { flag: "wx" });
+    return true;
+  } catch (err) {
+    if ((err as { code?: string }).code === "EEXIST") return false;
+    throw err;
+  }
 }

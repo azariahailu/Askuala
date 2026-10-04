@@ -14,7 +14,7 @@ const SCHEMA_HINT = [
   "- Only create weekly problem sets if the syllabus actually says problem set or homework is due every week. A writing seminar is not problem sets.",
   "- Never put recurrence on exams, quizzes, problem sets, homework, papers, drafts, or projects. Those are one dated item each. Lectures and office hours may be weekly.",
   "- Use the real name from the syllabus or Canvas (Problem set A, Homework 3), never a generic repeating “Problem Set 1” series.",
-  "- Office hours: type office_hour; title like Rasheed Tazudeen — Office Hours · ENGL 1014.",
+  "- Office hours: type office_hour; title like Rasheed Tazudeen: Office Hours · ENGL 1014.",
   "- Prefer America/New_York if timezone missing. Academic years start Fall 2026.",
   "- details must be the complete instruction, not just the title.",
 ].join("\n");

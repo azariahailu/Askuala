@@ -29,7 +29,7 @@ function sleep(ms: number) {
 }
 
 function spawnOllama(args: string[]) {
-  const child = spawn(ollamaBin(), args, { env: SERVE_ENV, stdio: "ignore", detached: true });
+  const child = spawn(/*turbopackIgnore: true*/ ollamaBin(), args, { env: SERVE_ENV, stdio: "ignore", detached: true });
   child.unref();
   child.on("error", () => undefined);
   return child;
@@ -192,6 +192,7 @@ const ALL_FLASH = [
   "gemini-3.1-flash-lite",
   "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
   "gemini-pro-latest",
   "gemini-pro",
 ];
@@ -217,10 +218,10 @@ export function isGeminiQuotaError(message: string) {
 
 export function friendlyGeminiError(message: string, _key?: string) {
   if (isGeminiHighDemand(message)) {
-    return "That Gemini model is overloaded. Try again — the app will use another model.";
+    return "Gemini is busy on Google’s side. Send the same message again.";
   }
   if (isGeminiQuotaError(message)) {
-    return "Google’s free Gemini limit for one model is used up on this API key (earlier retries count — not how many chats you sent today). Send again; Askuala will use another Gemini model.";
+    return "Google’s free Gemini limit for one model is used up on this API key (earlier retries count: not how many chats you sent today). Send again; Askuala will use another Gemini model.";
   }
   if (/api key|401|403|permission|invalid/i.test(message) && !/not found|no longer available/i.test(message)) {
     return "Gemini rejected the API key. Check it in Settings.";
@@ -331,9 +332,14 @@ export async function geminiGenerate(opts: {
   const listed = await geminiFlashModels(key);
   const cool = listed.filter((id) => notBusy(id) && !TIGHT_FREE_TIER.test(id));
   const tight = listed.filter((id) => notBusy(id) && TIGHT_FREE_TIER.test(id));
-  const models = (cool.length ? [...cool, ...tight] : listed.filter(notBusy).length ? listed.filter(notBusy) : listed).slice(0, opts.long ? 4 : 6);
+  const models = (cool.length ? [...cool, ...tight] : listed.filter(notBusy).length ? listed.filter(notBusy) : listed).slice(
+    0,
+    opts.long ? 8 : 8,
+  );
   const ms = opts.long ? 45000 : 12000;
 
+  for (let pass = 0; pass < 2; pass++) {
+    if (pass === 1) await sleep(900);
   for (const model of models) {
     try {
       const body: Record<string, unknown> = {
@@ -367,8 +373,9 @@ export async function geminiGenerate(opts: {
       if (!res.ok) {
         lastErr = data.error?.message || `gemini ${res.status}`;
         if (isGeminiHighDemand(lastErr) || res.status === 503) {
-          markGeminiBusy(model, 2 / 60);
+          markGeminiBusy(model, 45 / 3600);
           keepErr = lastErr;
+          await sleep(400);
           continue;
         }
         if (isGeminiQuotaError(lastErr) || res.status === 429) {
@@ -404,6 +411,7 @@ export async function geminiGenerate(opts: {
       }
       keepErr = lastErr;
     }
+  }
   }
   throw new Error(friendlyGeminiError(keepErr || lastErr || "gemini empty", key));
 }
@@ -497,9 +505,9 @@ export async function llmChat(_messages: ChatMsg[], _settings?: AppSettings, jso
 export function pullMessage() {
   const p = pullProgress();
   if (p.running || p.bytes > 0) {
-    return `Downloading DeepSeek onto this Mac (~5 GB, one-time). ${p.gb} GB so far (~${p.pct}%). Stay on this page — it can take 10–30 minutes. You can quit the Ollama app.`;
+    return `Downloading the local assistant onto this Mac (~5 GB, one-time). ${p.gb} GB so far (~${p.pct}%). Stay on this page.`;
   }
-  return `Starting the one-time DeepSeek download (~5 GB). Stay on this page.`;
+  return `Starting the one-time local assistant download (~5 GB). Stay on this page.`;
 }
 
 export function llmMissingMessage() {

@@ -15,7 +15,7 @@ export function PhoneAccess({ compact }: { compact?: boolean }) {
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
   const [onPhone, setOnPhone] = useState(false);
-  const [deployed, setDeployed] = useState(false);
+  const [deployed, setDeployed] = useState(() => typeof window !== "undefined" && isDeployedHttps());
 
   useEffect(() => {
     setOnPhone(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
@@ -68,7 +68,7 @@ export function PhoneAccess({ compact }: { compact?: boolean }) {
       <section className="rounded-xl border border-line bg-surface p-4 space-y-3">
         <h2 className="font-medium">Phones and tablets</h2>
         <p className="text-sm text-muted">
-          Open this same Askuala address in Safari or Chrome on any device. Sign in with Google or email there — you do not need this computer to stay awake.
+          Open this same Askuala address in Safari or Chrome on any device. Sign in with Google or email there: you do not need this computer to stay awake.
         </p>
         <button type="button" className="rounded-lg bg-gold px-3 py-2 text-on-gold" onClick={copy}>
           {copied ? "Copied" : "Copy this site’s link"}
@@ -78,6 +78,7 @@ export function PhoneAccess({ compact }: { compact?: boolean }) {
   }
 
   if (compact) {
+    if (deployed) return null;
     return (
       <button
         type="button"

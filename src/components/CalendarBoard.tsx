@@ -170,7 +170,7 @@ export function CalendarBoard({ courseId }: { courseId?: string }) {
           : raw);
         return;
       }
-      setSyncMsg(extra.message || "Synced.");
+      setSyncMsg(extra.ok === false ? extra.message || "Could not sync Google Calendar." : "Calendar is up to date.");
       await refresh();
     } catch (e) {
       setSyncMsg(e instanceof Error ? e.message : "Sync failed");
@@ -232,7 +232,7 @@ export function CalendarBoard({ courseId }: { courseId?: string }) {
         <section className="rounded-xl border border-gold/40 bg-surface p-4 text-sm">
           <h2 className="font-medium text-gold-2">Connect Google Calendar</h2>
           <p className="mt-1 text-muted">
-            Connect Google Calendar, then we import every calendar you have checked in Google — lectures, psets, and the rest, not only the primary calendar.
+            Connect Google Calendar, then we import every calendar you have checked in Google: lectures, psets, and the rest, not only the primary calendar.
           </p>
           <div className="mt-3 flex flex-wrap gap-3">
             <SignInGoogle

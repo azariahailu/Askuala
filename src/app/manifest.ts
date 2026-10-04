@@ -4,8 +4,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Askuala",
     short_name: "Askuala",
-    description: "College planner with Askuala Buddy — calendar, notes, and an assistant that knows your courses.",
-    start_url: "/",
+    description: "College planner with Askuala Buddy: calendar, notes, and an assistant that knows your courses.",
+    start_url: "/home",
     scope: "/",
     display: "standalone",
     orientation: "any",

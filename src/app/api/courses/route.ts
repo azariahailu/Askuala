@@ -3,6 +3,7 @@ import { applyCourseSchedule, salvageCourseName } from "@/lib/course-schedule";
 import { nid, nowIso, nextCourseColor } from "@/lib/ids";
 import { academicYearFor } from "@/lib/terms";
 import { pushEvent, ensureCourseCalendar } from "@/lib/google";
+import { syncCourseDriveFolder } from "@/lib/google-drive";
 import type { Course, Policy, TermName } from "@/lib/types";
 
 const EDITABLE = [
@@ -54,9 +55,15 @@ export async function PATCH(req: Request) {
     return await mutate(async (state) => {
       const course = state.courses.find((c) => c.id === body.id);
       if (!course) throw new Error("Course not found");
+      const prev = { code: course.code, name: course.name, year: course.year, term: course.term };
       applyFields(course, body);
       course.name = salvageCourseName(course);
       applyCourseSchedule(state, course);
+      try {
+        await syncCourseDriveFolder(state, course, prev);
+      } catch (e) {
+        console.error(e);
+      }
       try {
         await ensureCourseCalendar(state, course);
       } catch (e) {
@@ -102,7 +109,7 @@ export async function DELETE(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Record<string, unknown> & { id?: string; create?: boolean };
-    return await mutate((state) => {
+    return await mutate(async (state) => {
       if (body.create) {
         const color = nextCourseColor(state.courses.length);
         const course: Course = {
@@ -131,6 +138,11 @@ export async function POST(req: Request) {
         course.name = salvageCourseName(course);
         applyCourseSchedule(state, course);
         state.courses.push(course);
+        try {
+          await syncCourseDriveFolder(state, course);
+        } catch {
+          /* course still saved */
+        }
         return { course };
       }
       const course = state.courses.find((c) => c.id === body.id);

@@ -2,9 +2,8 @@ import { fail, mutate } from "@/lib/api";
 import { extractTextFromBuffer } from "@/lib/extract-text";
 import { defaultAlerts, nid, nowIso } from "@/lib/ids";
 import { generateStudySummary } from "@/lib/note-summary";
-import { pushNoteUploadsToDrive, pushStudyPdfToDrive } from "@/lib/google-drive";
+import { ensureCourseDriveTree, pushNoteUploadsToDrive } from "@/lib/google-drive";
 import { readUpload, saveUpload } from "@/lib/store";
-import { studyGuidePdf } from "@/lib/study-pdf";
 import type { Attachment, CourseNote, NoteKind } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -36,21 +35,6 @@ async function textFromNoteAttachments(userId: string, note: CourseNote) {
     }
   }
   return chunks.join("\n\n");
-}
-
-async function pushStudy(state: Parameters<typeof pushStudyPdfToDrive>[0]["state"], userId: string, note: CourseNote) {
-  if (!note.summary.trim()) return;
-  const course = state.courses.find((c) => c.id === note.courseId);
-  const buf = await studyGuidePdf(`${note.title || "Study guide"}`, note.summary);
-  const date = (note.catalogDate || note.createdAt || "").slice(0, 10);
-  await pushStudyPdfToDrive({
-    state,
-    userId,
-    note,
-    course,
-    buf,
-    filename: `${date} · ${note.title || "Study guide"}.pdf`,
-  });
 }
 
 export async function POST(req: Request) {
@@ -126,6 +110,7 @@ export async function POST(req: Request) {
         alerts: parsedAlerts.length ? parsedAlerts : kind === "reminder" ? defaultAlerts() : [],
         transcript,
         summary: study,
+        summaryReadyAt: study.trim() ? nowIso() : undefined,
         audioPath,
         attachments,
         createdAt: nowIso(),
@@ -133,8 +118,8 @@ export async function POST(req: Request) {
       };
       state.notes.push(note);
       try {
+        if (study.trim()) await ensureCourseDriveTree(state, course);
         await pushNoteUploadsToDrive(state, userId, note, course, { files: fileBufs, audio: audioBuf });
-        await pushStudy(state, userId, note);
       } catch {
         /* local note still saved */
       }
@@ -157,6 +142,9 @@ export async function PATCH(req: Request) {
         const current = note.summary;
         note.summary = prev;
         note.summaryPrevious = current;
+        note.summaryReadyAt = nowIso();
+        note.studyPdfDriveUrl = undefined;
+        note.studyPdfPath = undefined;
       } else if (body.regenerateSummary) {
         const course = state.courses.find((c) => c.id === note.courseId);
         const extraMaterials = await textFromNoteAttachments(userId, note);
@@ -172,10 +160,17 @@ export async function PATCH(req: Request) {
           extraMaterials,
         });
         if (prior.trim() && prior !== note.summary) note.summaryPrevious = prior;
-        try {
-          await pushStudy(state, userId, note);
-        } catch {
-          /* keep the guide in the note */
+        if (note.summary.trim() && note.summary !== prior) {
+          note.summaryReadyAt = nowIso();
+          note.studyPdfDriveUrl = undefined;
+          note.studyPdfPath = undefined;
+        }
+        if (note.summary.trim()) {
+          try {
+            await ensureCourseDriveTree(state, course);
+          } catch {
+            /* guide still saved */
+          }
         }
       } else {
         Object.assign(note, { ...body, updatedAt: nowIso(), id: note.id });

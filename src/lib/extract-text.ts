@@ -1,18 +1,29 @@
 import fs from "node:fs/promises";
-import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
+
+function ensurePdfDom() {
+  const g = globalThis as { DOMMatrix?: unknown };
+  if (typeof g.DOMMatrix === "undefined") {
+    g.DOMMatrix = class PdfDomMatrix {};
+  }
+}
+
+async function pdfText(data: Buffer) {
+  ensurePdfDom();
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data });
+  try {
+    const result = await parser.getText();
+    return result.text || "";
+  } finally {
+    await parser.destroy();
+  }
+}
 
 export async function extractTextFromPath(filePath: string, mime: string, originalName: string) {
   const lower = originalName.toLowerCase();
   if (mime.includes("pdf") || lower.endsWith(".pdf")) {
-    const data = await fs.readFile(filePath);
-    const parser = new PDFParse({ data });
-    try {
-      const result = await parser.getText();
-      return result.text || "";
-    } finally {
-      await parser.destroy();
-    }
+    return pdfText(await fs.readFile(filePath));
   }
   if (
     mime.includes("word") ||
@@ -31,13 +42,7 @@ export async function extractTextFromPath(filePath: string, mime: string, origin
 export async function extractTextFromBuffer(buf: Buffer, mime: string, originalName: string) {
   const lower = originalName.toLowerCase();
   if (mime.includes("pdf") || lower.endsWith(".pdf")) {
-    const parser = new PDFParse({ data: buf });
-    try {
-      const result = await parser.getText();
-      return result.text || "";
-    } finally {
-      await parser.destroy();
-    }
+    return pdfText(buf);
   }
   if (lower.endsWith(".docx") || mime.includes("wordprocessingml")) {
     const result = await mammoth.extractRawText({ buffer: buf });

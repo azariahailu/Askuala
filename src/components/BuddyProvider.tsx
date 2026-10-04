@@ -79,6 +79,9 @@ export function BuddyProvider({ children, initial }: { children: React.ReactNode
     const later = window.setTimeout(() => {
       if (document.visibilityState === "visible") ping("active");
     }, 60_000);
+    const driveSoon = window.setTimeout(() => {
+      void fetch("/api/notifications/tick", { method: "POST", credentials: "include" });
+    }, 4000);
     const t = setInterval(() => {
       if (document.visibilityState === "visible") ping("active");
     }, 120000);
@@ -102,6 +105,7 @@ export function BuddyProvider({ children, initial }: { children: React.ReactNode
     return () => {
       document.removeEventListener("visibilitychange", onHide);
       clearTimeout(later);
+      clearTimeout(driveSoon);
       clearInterval(t);
       clearInterval(mail);
     };

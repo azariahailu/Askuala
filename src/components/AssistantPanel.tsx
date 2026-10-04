@@ -39,14 +39,21 @@ export function AssistantPanel({
       if (activeId) form.set("chatId", activeId);
       for (const f of files) form.append("files", f);
       const before = (data?.messages || []).map((m) => m.id);
-      await postForm("/api/assistant", form);
+      try {
+        await postForm("/api/assistant", form);
+      } catch (startErr) {
+        setErr(startErr instanceof Error ? startErr.message : "Could not start Gemini.");
+      }
       setText("");
       setFiles([]);
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 36; i++) {
         const next = await refresh();
         const msgs = next?.messages || [];
         const last = msgs[msgs.length - 1];
-        if (last?.role === "assistant" && !before.includes(last.id)) break;
+        if (last?.role === "assistant" && !before.includes(last.id)) {
+          setErr("");
+          break;
+        }
         await new Promise((r) => setTimeout(r, 2500));
       }
       setTimeout(() => bottom.current?.scrollIntoView({ behavior: "smooth" }), 50);
@@ -210,7 +217,7 @@ export function AssistantPanel({
             <h1 className="text-lg font-semibold">{activePinned ? chats.find((c) => c.id === activeId)?.title || ASSISTANT_NAME : ASSISTANT_NAME}</h1>
             <p className="text-sm text-muted">
               {activePinned
-                ? "Pinned manual — always here, cannot be deleted. Use New chat for other threads."
+                ? "Pinned manual: always here, cannot be deleted. Use New chat for other threads."
                 : `The assistant in ${APP_NAME}. Gemini when a key is saved. Old chats stay until you delete them.`}
             </p>
           </div>

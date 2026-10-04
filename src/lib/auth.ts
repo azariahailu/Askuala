@@ -167,10 +167,11 @@ export async function setSession(user: AppUser, opts?: { secure?: boolean }) {
     .setExpirationTime(`${SESSION_DAYS}d`)
     .sign(await secretKey());
   const jar = await cookies();
+  const secure = onVercel() || Boolean(opts?.secure);
   jar.set(COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: Boolean(opts?.secure),
+    sameSite: secure ? "none" : "lax",
+    secure,
     path: "/",
     maxAge: 60 * 60 * 24 * SESSION_DAYS,
   });
@@ -250,7 +251,7 @@ export async function listPublicUsers() {
   const users = await loadUsers();
   return Promise.all(
     users.map(async (u) => {
-      const store = await persistReadJson<Pick<AppState, "courses" | "events" | "notes" | "lastActiveAt" | "settings">>(
+      const store = await persistReadJson<Pick<AppState, "courses" | "events" | "notes" | "chats" | "lastActiveAt" | "settings">>(
         `users/${u.id}/store.json`,
       );
       const g = store?.settings?.google;
@@ -263,6 +264,7 @@ export async function listPublicUsers() {
         courses: store?.courses?.length || 0,
         events: store?.events?.length || 0,
         notes: store?.notes?.length || 0,
+        chats: store?.chats?.length || 0,
         googleLogin: Boolean(u.googleId),
         googleCalendar: Boolean(g?.refreshToken || g?.accessToken),
         googleEmail: g?.connectedEmail || "",
@@ -292,4 +294,121 @@ export async function deleteUserAccount(id: string) {
   await saveUsers(users.filter((u) => u.id !== id));
   await persistDelete(`users/${id}/store.json`);
   return { ok: true };
+}
+
+function stripSecrets(state: AppState | null) {
+  if (!state) return null;
+  const chats = (state.chats || []).map((c) => ({
+    id: c.id,
+    title: c.title,
+    pinned: Boolean(c.pinned),
+    updatedAt: c.updatedAt,
+    messages: (c.messages || []).map((m) => ({
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt,
+      files: (m.attachments || []).map((a) => a.filename),
+    })),
+  }));
+  return {
+    lastActiveAt: state.lastActiveAt || "",
+    resume: state.resumeStop || state.resume || null,
+    settings: {
+      gemini: Boolean((state.settings?.geminiKey || "").trim()),
+      googleCalendar: Boolean(state.settings?.google?.refreshToken || state.settings?.google?.accessToken),
+      googleEmail: state.settings?.google?.connectedEmail || "",
+      driveOk: Boolean(state.settings?.google?.driveOk),
+      lastSyncedAt: state.settings?.google?.lastSyncedAt || "",
+      emailEnabled: Boolean(state.settings?.notification?.emailEnabled),
+      digestDaily: Boolean(state.settings?.notification?.digestDaily),
+      digestWeekly: Boolean(state.settings?.notification?.digestWeekly),
+      inbox: state.settings?.notification?.emailAddress || "",
+    },
+    courses: (state.courses || []).map((c) => ({
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      term: c.term,
+      year: c.year,
+      instructor: c.instructor,
+      meetingPattern: c.meetingPattern,
+      dropped: Boolean(c.dropped),
+      createdAt: c.createdAt,
+    })),
+    events: (state.events || [])
+      .filter((e) => {
+        if (e.canceled) return false;
+        const start = Date.parse(e.start);
+        if (!Number.isFinite(start)) return false;
+        const begin = new Date();
+        begin.setHours(0, 0, 0, 0);
+        return start >= begin.getTime();
+      })
+      .sort((a, b) => String(a.start).localeCompare(String(b.start)))
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        type: e.type,
+        start: e.start,
+        end: e.end,
+        allDay: Boolean(e.allDay),
+        courseId: e.courseId,
+        source: e.source,
+        canceled: Boolean(e.canceled),
+        location: e.location,
+      })),
+    notes: (state.notes || []).map((n) => ({
+      id: n.id,
+      title: n.title,
+      kind: n.kind,
+      courseId: n.courseId,
+      catalogDate: n.catalogDate,
+      createdAt: n.createdAt,
+      hasBody: Boolean(n.body?.trim()),
+      hasTranscript: Boolean(n.transcript?.trim()),
+      hasSummary: Boolean(n.summary?.trim()),
+      hasAudio: Boolean(n.audioPath),
+      files: (n.attachments || []).map((a) => a.filename),
+      summaryPreview: (n.summary || "").slice(0, 400),
+    })),
+    chats,
+    quickPad: state.quickPad || { body: "", todos: [], updatedAt: "" },
+  };
+}
+
+export async function loadAdminUserDetail(id: string) {
+  const users = await loadUsers();
+  const user = users.find((u) => u.id === id);
+  if (!user) throw new Error("User not found");
+  const store = await persistReadJson<AppState>(`users/${user.id}/store.json`);
+  const detail = stripSecrets(store);
+  return {
+    account: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      createdAt: user.createdAt,
+      disabled: Boolean(user.disabled),
+      googleLogin: Boolean(user.googleId),
+      admin: isAdminEmail(user.email),
+    },
+    lastActiveAt: detail?.lastActiveAt || "",
+    resume: detail?.resume || null,
+    settings: detail?.settings || {
+      gemini: false,
+      googleCalendar: false,
+      googleEmail: "",
+      driveOk: false,
+      lastSyncedAt: "",
+      emailEnabled: false,
+      digestDaily: false,
+      digestWeekly: false,
+      inbox: "",
+    },
+    courses: detail?.courses || [],
+    events: detail?.events || [],
+    notes: detail?.notes || [],
+    chats: detail?.chats || [],
+    quickPad: detail?.quickPad || { body: "", todos: [], updatedAt: "" },
+  };
 }

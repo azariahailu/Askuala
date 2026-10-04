@@ -5,6 +5,7 @@ import { resolveSmtp } from "./mail-account";
 import { TYPE_LABELS, type AppState, type CourseEvent, type CourseNote } from "./types";
 import { geminiApiKey, llmChat } from "./llm";
 import { APP_NAME } from "./brand";
+import { persistCreateExclusive, persistDelete, persistRead } from "./persist";
 
 export type DueAlert = {
   key: string;
@@ -75,7 +76,7 @@ async function transporterFor(state?: AppState) {
   };
 }
 
-/** Digests and reminders — only if the student left email on. Always to the login address set on the state. */
+/** Digests and reminders: only if the student left email on. Always to the login address set on the state. */
 export async function sendEmail(state: AppState, subject: string, text: string) {
   const to = state.settings.notification.emailAddress;
   if (!to || !state.settings.notification.emailEnabled) return false;
@@ -99,7 +100,7 @@ export async function sendLoginEmail(to: string, name?: string) {
     from: `"${APP_NAME}" <${ready.smtp.user}>`,
     to,
     subject: `${APP_NAME}: you’re signed in`,
-    text: `Hi ${who},\n\nYou’re signed in to ${APP_NAME}. This mailbox (${to}) is where briefs and reminders will go — you don’t add another inbox.\n\nDaily: tomorrow’s work in one email. Sunday: the week ahead. Office hours are left out.\n\nIf this wasn’t you, sign out and change your password.\n`,
+    text: `Hi ${who},\n\nYou’re signed in to ${APP_NAME}. This mailbox (${to}) is where briefs and reminders will go: you don’t add another inbox.\n\nDaily: tomorrow’s work in one email. Sunday: the week ahead. Office hours are left out.\n\nIf this wasn’t you, sign out and change your password.\n`,
   });
   return true;
 }
@@ -122,7 +123,7 @@ export async function sendAdminNewUserEmail(opts: {
     text: [
       `A new ${APP_NAME} account was created.`,
       "",
-      `Name: ${opts.name || "—"}`,
+      `Name: ${opts.name || "none"}`,
       `Email: ${opts.email}`,
       `Signed up with: ${opts.method === "google" ? "Google" : "email + password"}`,
       `Account id: ${opts.id}`,
@@ -200,7 +201,7 @@ async function briefBody(state: AppState, start: Date, end: Date, heading: strin
       false,
     );
     const clean = (text || "").trim();
-    return clean ? `${clean}\n\n—\n${skeleton}` : skeleton;
+    return clean ? `${clean}\n\n${skeleton}` : skeleton;
   } catch {
     return skeleton;
   }
@@ -246,13 +247,61 @@ function weeklyBody(state: AppState, weekStart: Date, weekEnd: Date, now: Date, 
   return [formatWindow(state, weekStart, weekEnd, heading), "", formatMajors(state, now)].join("\n");
 }
 
-async function sendOnce(state: AppState, key: string, subject: string, body: string) {
-  if (state.firedAlertKeys.includes(key)) return;
+function mailLockKey(email: string, key: string) {
+  const who = email.trim().toLowerCase().replace(/[^a-z0-9@._+-]+/g, "_") || "unknown";
+  const safe = key.replace(/[^a-zA-Z0-9:_-]+/g, "_");
+  return `mail-locks/${who}/${safe}`;
+}
+
+function alreadySent(state: AppState, keys: string[]) {
+  return keys.some((key) => state.firedAlertKeys.includes(key));
+}
+
+const claiming = new Set<string>();
+
+async function sendOnce(
+  state: AppState,
+  keys: string[],
+  subject: string,
+  body: () => Promise<string> | string,
+) {
+  const primary = keys[0];
+  if (alreadySent(state, keys)) return;
+  const email = state.settings.notification.emailAddress || "";
+  const lock = mailLockKey(email, primary);
+  if (claiming.has(lock)) return;
+  claiming.add(lock);
   try {
-    const ok = await sendEmail(state, subject, body);
-    if (ok) state.firedAlertKeys.push(key);
+    const existing = await persistRead(lock);
+    if (existing) {
+      for (const key of keys) {
+        if (!state.firedAlertKeys.includes(key)) state.firedAlertKeys.push(key);
+      }
+      return;
+    }
+    const claimed = await persistCreateExclusive(lock, new Date().toISOString());
+    if (!claimed) {
+      for (const key of keys) {
+        if (!state.firedAlertKeys.includes(key)) state.firedAlertKeys.push(key);
+      }
+      return;
+    }
+    try {
+      const text = await body();
+      const ok = await sendEmail(state, subject, text);
+      if (ok) {
+        for (const key of keys) {
+          if (!state.firedAlertKeys.includes(key)) state.firedAlertKeys.push(key);
+        }
+      } else await persistDelete(lock);
+    } catch (e) {
+      await persistDelete(lock).catch(() => undefined);
+      console.error(e);
+    }
   } catch (e) {
     console.error(e);
+  } finally {
+    claiming.delete(lock);
   }
 }
 
@@ -311,9 +360,9 @@ export async function sendDigests(state: AppState, now = new Date()) {
         const tomorrow = new Date(items[0].start);
         await sendOnce(
           state,
-          `digest:daily:${todayYmd}`,
+          [`digest:day:${tomorrowYmd}`, `digest:daily:${todayYmd}`],
           `Tomorrow · ${tomorrow.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", timeZone: "America/New_York" })}`,
-          await briefBody(state, now, now, `What’s coming up tomorrow`, tomorrowYmd),
+          () => briefBody(state, now, now, `What’s coming up tomorrow`, tomorrowYmd),
         );
       }
     } else {
@@ -322,9 +371,9 @@ export async function sendDigests(state: AppState, now = new Date()) {
       if (items.length) {
         await sendOnce(
           state,
-          `digest:daily:${yest}`,
+          [`digest:day:${todayYmd}`, `digest:daily:${yest}`],
           `Today · ${now.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", timeZone: "America/New_York" })}`,
-          await briefBody(state, now, now, `Catch-up: the scheduled tomorrow-brief was missed (computer was off) — what’s left today`, todayYmd),
+          () => briefBody(state, now, now, `Catch-up: the scheduled tomorrow-brief was missed: what’s left today`, todayYmd),
         );
       }
     }
@@ -336,9 +385,9 @@ export async function sendDigests(state: AppState, now = new Date()) {
     if (!digestEvents(state, from, to).length) return;
     await sendOnce(
       state,
-      `digest:weekly:${keySundayYmd}`,
+      [`digest:weekly:${keySundayYmd}`],
       "This week ahead",
-      weeklyBody(state, from, to, now, "This week (office hours, lectures, and problem sets omitted)"),
+      () => weeklyBody(state, from, to, now, "This week (office hours, lectures, and problem sets omitted)"),
     );
   }
 }
@@ -369,18 +418,19 @@ function weeklyWindow(now: Date) {
       due: clock.hour > 11 || (clock.hour === 11 && clock.minute >= 0),
     };
   }
-  const lastSundayYmd = addCalendarYmd(todayYmd, -dow);
-  const mondayYmd = addCalendarYmd(lastSundayYmd, 1);
-  const fromYmd = todayYmd < mondayYmd ? mondayYmd : todayYmd;
-  return {
-    keySundayYmd: lastSundayYmd,
-    from: ymdStart(fromYmd),
-    to: ymdEnd(addCalendarYmd(mondayYmd, 6)),
-    due: true,
-  };
+  if (dow === 1 && clock.hour < 12) {
+    const lastSundayYmd = addCalendarYmd(todayYmd, -1);
+    return {
+      keySundayYmd: lastSundayYmd,
+      from: ymdStart(todayYmd),
+      to: ymdEnd(addCalendarYmd(todayYmd, 6)),
+      due: true,
+    };
+  }
+  return { keySundayYmd: todayYmd, from: now, to: now, due: false };
 }
 
-export async function processNotifications(state: AppState, opts?: { mail?: boolean }) {
+export async function processNotifications(state: AppState, opts?: { mail?: boolean; userId?: string }) {
   const due = collectDueAlerts(state);
   const popups: DueAlert[] = [];
   const n = state.settings.notification;
@@ -392,7 +442,7 @@ export async function processNotifications(state: AppState, opts?: { mail?: bool
       popups.push(alert);
     }
   }
-  if (opts?.mail !== false) await sendDigests(state);
+  if (opts?.mail !== false) await sendDigests(state, new Date());
   if (state.firedAlertKeys.length > 4000) state.firedAlertKeys = state.firedAlertKeys.slice(-2000);
   return { popups, changed: state.firedAlertKeys.length !== fired0 };
 }

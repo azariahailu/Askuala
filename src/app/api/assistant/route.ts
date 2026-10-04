@@ -1,7 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { fail } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
-import { extractTextFromBuffer, extractTextFromPath } from "@/lib/extract-text";
 import { pushPlainUploadsToDrive } from "@/lib/google-drive";
 import { runAssistant, titleFromMessage } from "@/lib/local-chat";
 import { nid, nowIso } from "@/lib/ids";
@@ -36,11 +35,11 @@ async function finishReply(opts: {
     } catch (e) {
       const err = e instanceof Error ? e.message : "Gemini failed";
       reply = /denied access/i.test(err)
-        ? `Tried Gemini and Google blocked the key (${err.slice(0, 120)}). I did not fall back to DeepSeek.`
-        : `Gemini did not return text (${err.slice(0, 220)}). I did not fall back to DeepSeek.`;
+        ? `Gemini blocked this key (${err.slice(0, 120)}). Create a new AI Studio key if it keeps happening.`
+        : `Gemini did not return text (${err.slice(0, 220)}).`;
     }
     if (!reply.trim()) {
-      reply = "Gemini sent an empty reply. Try once more — I did not fall back to DeepSeek.";
+      reply = "Gemini returned no text that time. Ask again in a moment.";
     }
     chat?.messages.push({
       id: nid(),
@@ -60,7 +59,7 @@ async function finishReply(opts: {
         /* chat still saved */
       }
     }
-  });
+  }, { light: true });
 }
 
 export async function POST(req: Request) {
@@ -85,11 +84,16 @@ export async function POST(req: Request) {
         createdAt: nowIso(),
       });
       if (saved.buf) fileBufs[saved.filename] = saved.buf;
-      extractedText += `\n\n--- ${file.name} ---\n${
-        saved.dest
-          ? await extractTextFromPath(saved.dest, file.type, file.name)
-          : await extractTextFromBuffer(saved.buf || Buffer.alloc(0), file.type, file.name)
-      }`;
+      try {
+        const { extractTextFromBuffer, extractTextFromPath } = await import("@/lib/extract-text");
+        extractedText += `\n\n--- ${file.name} ---\n${
+          saved.dest
+            ? await extractTextFromPath(saved.dest, file.type, file.name)
+            : await extractTextFromBuffer(saved.buf || Buffer.alloc(0), file.type, file.name)
+        }`;
+      } catch {
+        extractedText += `\n\n--- ${file.name} ---\n`;
+      }
     }
 
     const userMsg = {
@@ -123,20 +127,22 @@ export async function POST(req: Request) {
       }
       chat.updatedAt = nowIso();
       state.messages = chat.messages;
+    }, { light: true });
+
+    const job = finishReply({
+      userId: user.id,
+      message,
+      extractedText,
+      userMsgId: userMsg.id,
+      attachments,
+      fileBufs,
+    }).catch((err) => console.error("assistant after", err));
+    after(() => job);
+
+    return new NextResponse(JSON.stringify({ ok: true, extra: { pending: true } }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
-
-    after(() =>
-      finishReply({
-        userId: user.id,
-        message,
-        extractedText,
-        userMsgId: userMsg.id,
-        attachments,
-        fileBufs,
-      }).catch((err) => console.error("assistant after", err)),
-    );
-
-    return NextResponse.json({ ok: true, extra: { pending: true } });
   } catch (err) {
     return fail(err);
   }

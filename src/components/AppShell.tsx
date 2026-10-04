@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { useBuddy } from "./BuddyProvider";
+import { StudyPrintBackfill } from "./StudyPrintBackfill";
 import { ThemeToggle } from "./ThemeToggle";
 import { PhoneAccess } from "./PhoneAccess";
 import { useTheme, type ThemeMode } from "./ThemeProvider";
@@ -320,6 +321,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="relative z-0 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">{children}</main>
+        <StudyPrintBackfill />
         {chatOpen && path !== "/assistant" && (
           <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-surface sm:inset-auto sm:bottom-3 sm:right-3 sm:h-[min(34rem,calc(100dvh-5.5rem))] sm:w-[min(26rem,calc(100vw-1.5rem))] sm:rounded-2xl sm:border sm:border-gold/40 sm:shadow-2xl">
             <ChatSafe onClose={() => setChatOpen(false)}>

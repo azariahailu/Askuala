@@ -89,13 +89,23 @@ export function EventModal({
 
   async function save() {
     try {
+      const startAt = new Date(start);
+      if (!start || Number.isNaN(startAt.getTime())) {
+        setErr("Need a valid start time.");
+        return;
+      }
+      const endAt = end ? new Date(end) : null;
+      if (endAt && Number.isNaN(endAt.getTime())) {
+        setErr("The end time is not a valid date.");
+        return;
+      }
       const payload = {
         id: event?.id.split("::")[0],
         title,
         details,
         type,
-        start: new Date(start).toISOString(),
-        end: end ? new Date(end).toISOString() : null,
+        start: startAt.toISOString(),
+        end: endAt ? endAt.toISOString() : null,
         allDay,
         location,
         weight,
@@ -153,7 +163,7 @@ export function EventModal({
                 .filter((c) => !c.dropped)
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.code} — {c.name}
+                    {c.code}: {c.name}
                   </option>
                 ))}
             </select>
@@ -242,7 +252,7 @@ export function EventModal({
                 }}
               />
               <span>
-                Notify me on my phone via the Google Calendar app. This writes one popup reminder (default: 10 minutes before) on your primary calendar. Email reminders are separate and optional — they will not ping the phone. Use the Google Calendar app, not Apple Calendar.
+                Notify me on my phone via the Google Calendar app. This writes one popup reminder (default: 10 minutes before) on your primary calendar. Email reminders are separate and optional: they will not ping the phone. Use the Google Calendar app, not Apple Calendar.
               </span>
             </label>
             {googleAlerts && (

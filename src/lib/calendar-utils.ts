@@ -248,7 +248,7 @@ export function normalizeCourseCode(raw: string) {
 
 export function codesInText(text: string) {
   const out: string[] = [];
-  const re = /\b([A-Za-z]{2,6}(?:\s*&\s*[A-Za-z]{2,4})?)\s*[-–:]?\s*(\d{3,5}[A-Za-z]?)\b/g;
+  const re = /\b([A-Za-z]{2,6}(?:\s*&\s*[A-Za-z]{2,4})?)\s*[- to :]?\s*(\d{3,5}[A-Za-z]?)\b/g;
   let m: RegExpExecArray | null;
   const hay = text || "";
   while ((m = re.exec(hay))) {
@@ -262,10 +262,10 @@ export function stripCourseCode(title: string, code?: string) {
   let t = (title || "").trim();
   if (code) {
     const c = normalizeCourseCode(code);
-    t = t.replace(new RegExp(`^${c.replace(/\s+/g, "\\s*")}\\s*[·:\\-–—]\\s*`, "i"), "");
+    t = t.replace(new RegExp(`^${c.replace(/\s+/g, "\\s*")}\\s*(?:[·:]|-)\\s*`, "i"), "");
     t = t.replace(new RegExp(`\\s*[·]\\s*${c.replace(/\s+/g, "\\s*")}$`, "i"), "");
   }
-  t = t.replace(/^\s*[A-Za-z]{2,6}(?:\s*&\s*[A-Za-z]{2,4})?\s+\d{3,5}[A-Za-z]?\s*[·:\\-–—]\s*/, "");
+  t = t.replace(/^\s*[A-Za-z]{2,6}(?:\s*&\s*[A-Za-z]{2,4})?\s+\d{3,5}[A-Za-z]?\s*(?:[·:]|-)\s*/, "");
   return t.replace(/\s+due$/i, "").trim();
 }
 
@@ -283,10 +283,10 @@ export function tidyCourseEventTitle(title: string, code?: string) {
   let t = (title || "").trim();
   t = t.replace(/\s*\[[^\]]{2,80}\]\s*/g, " ");
   t = t.replace(/\s+\d{1,3}\s*\(\s*(?:FA|SP|SU)\d{2}\s*\):\s*/i, " · ");
-  t = t.replace(/\s*[-–—]\s*Due\b.+$/i, "");
+  t = t.replace(/\s*[- to : ]\s*Due\b.+$/i, "");
   t = t.replace(/\s+due\s+(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.+$/i, "");
   t = t.replace(/\s+due\s+\d{1,2}:\d{2}\s*(?:am|pm)?\s*$/i, "");
-  t = t.replace(/\bS&DS\s+1000\s*\/\s*5000\s*[—–-]\s*/i, "");
+  t = t.replace(/\bS&DS\s+1000\s*\/\s*5000\s*[:  to -]\s*/i, "");
   t = t.replace(/\s+/g, " ").trim();
   t = t.replace(/\bproblem sets?\b/gi, (s) => (s.toLowerCase().endsWith("s") ? "Problem Sets" : "Problem Set"));
   t = t.replace(/\bhomework\b/gi, "Homework");
@@ -327,7 +327,7 @@ export function looksLikeOfficeHour(event: Pick<CourseEvent, "title" | "details"
   return /\boffice\s*hours?\b/i.test(event.details || "");
 }
 
-/** Lectures, problem sets, readings, office hours — on the calendar, but no pings until the student opts in. */
+/** Lectures, problem sets, readings, office hours: on the calendar, but no pings until the student opts in. */
 export function isRoutineNoise(event: Pick<CourseEvent, "title" | "details" | "type">) {
   if (looksLikeOfficeHour(event)) return true;
   if (event.type === "lecture" || event.type === "reading" || event.type === "pset") return true;
@@ -338,7 +338,7 @@ export function isRoutineNoise(event: Pick<CourseEvent, "title" | "details" | "t
 export function foldTitle(title: string, code?: string) {
   return stripCourseCode(title, code)
     .toLowerCase()
-    .replace(/[—–−]/g, "-")
+    .replace(/[:  to −]/g, "-")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
@@ -409,7 +409,7 @@ export function applyStatedExamTimes(event: CourseEvent) {
   if (event.type !== "exam" && event.type !== "quiz" && !assessmentStamp(event)) return;
   const text = `${event.title} ${event.details || ""}`;
   const range = text.match(
-    /(?:from\s+)?(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?\s*[-–to]+\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)/i,
+    /(?:from\s+)?(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|to)\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)/i,
   );
   if (range) {
     const mer = (range[4] || range[2] || "pm").replace(/\./g, "").toLowerCase();

@@ -37,7 +37,11 @@ export async function POST(req: Request) {
           updatedAt: nowIso(),
           canceled: false,
         });
-        await pushEvent(state, hit, true);
+        try {
+          await pushEvent(state, hit, true);
+        } catch (e) {
+          console.error(e);
+        }
         return { event: hit };
       }
       const event: CourseEvent = {
@@ -64,7 +68,11 @@ export async function POST(req: Request) {
         updatedAt: nowIso(),
       };
       state.events.push(event);
-      await pushEvent(state, event, true);
+      try {
+        await pushEvent(state, event, true);
+      } catch (e) {
+        console.error(e);
+      }
       return { event };
     });
   } catch (err) {
@@ -86,7 +94,11 @@ export async function PATCH(req: Request) {
       if (shouldNotRecur(event)) event.recurrence = null;
       if (Array.isArray(body.alerts)) event.alerts = body.alerts;
       event.googleAlerts = Boolean(event.googleAlerts && (event.alerts?.length ?? 0) > 0);
-      await pushEvent(state, event, true);
+      try {
+        await pushEvent(state, event, true);
+      } catch (e) {
+        console.error(e);
+      }
       return { event };
     });
   } catch (err) {
