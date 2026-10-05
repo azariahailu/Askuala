@@ -20,26 +20,35 @@ const SCOPES = [
 const TZ = "America/New_York";
 const PHONE_TYPES: EventType[] = ["exam", "quiz", "project"];
 
+function optedIntoPhone(event: CourseEvent) {
+  return Boolean(event.googleAlerts || (event.alerts?.length ?? 0) > 0);
+}
+
+/** Routine class noise stays silent unless the student turned phone alerts on for that event. */
 function quietOnPhone(event: CourseEvent) {
+  if (optedIntoPhone(event)) return false;
   return isRoutineNoise(event);
 }
 
 function wantsPhoneReminders(event: CourseEvent) {
   if (event.canceled || quietOnPhone(event)) return false;
   if (PHONE_TYPES.includes(event.type)) return true;
-  return Boolean(event.googleAlerts);
+  return optedIntoPhone(event);
 }
 
 export function ensureEventPhoneReminders(event: CourseEvent) {
   if (event.canceled || event.source === "google") return;
-  if (quietOnPhone(event)) {
+  if (isRoutineNoise(event) && !optedIntoPhone(event)) {
     event.googleAlerts = false;
     event.alerts = [];
     return;
   }
-  if (!PHONE_TYPES.includes(event.type) && !event.googleAlerts) return;
+  if (!PHONE_TYPES.includes(event.type) && !optedIntoPhone(event)) return;
   event.googleAlerts = true;
   if (!event.alerts?.length) event.alerts = phoneAlertRules();
+  else if (!event.alerts.some((a) => a.channel === "popup" && Number(a.amount) > 0)) {
+    event.alerts = [{ id: nid(), amount: 10, unit: "minutes", channel: "popup" }, ...event.alerts];
+  }
 }
 
 function headerHost(req: Request) {
@@ -293,10 +302,12 @@ function googleReminderOverrides(event: CourseEvent) {
     if (a.unit === "weeks") minutes *= 60 * 24 * 7;
     minutes = Math.min(40320, Math.max(0, Math.round(minutes)));
     const method = a.channel === "email" ? "email" : "popup";
+    // Phone Calendar apps often skip 0-minute popups; bump those to 10 minutes.
+    if (method === "popup" && minutes === 0) minutes = 10;
     if (!out.some((x) => x.method === method && x.minutes === minutes)) out.push({ method, minutes });
     if (out.length >= 5) break;
   }
-  if (!out.some((x) => x.method === "popup")) {
+  if (!out.some((x) => x.method === "popup" && x.minutes > 0)) {
     out.unshift({ method: "popup", minutes: 10 });
   }
   return out.slice(0, 5);
@@ -737,17 +748,18 @@ function eventIsCurrentOrFuture(event: CourseEvent, now: Date) {
 function needsOutboundPush(event: CourseEvent, now: Date) {
   if (event.canceled || event.id.includes("::")) return false;
   if (!eventIsCurrentOrFuture(event, now)) return false;
-  if (quietOnPhone(event)) {
-    const stripReminders = Boolean(event.googleAlerts || event.alerts?.length);
+  if (isRoutineNoise(event) && !optedIntoPhone(event)) {
+    const stripReminders = Boolean(event.googleEventId && (event.googleAlerts || event.alerts?.length));
     event.googleAlerts = false;
     event.alerts = [];
-    return Boolean(stripReminders && event.googleEventId);
+    return Boolean(stripReminders);
   }
   ensureEventPhoneReminders(event);
   const remind = wantsPhoneReminders(event);
   const desired = remind ? "primary" : event.googleCalendarId || "primary";
-  if (event.googleEventId && event.googleCalendarId === desired) return false;
-  return true;
+  if (!event.googleEventId || event.googleCalendarId !== desired) return true;
+  // Already on the right calendar: still refresh when phone alerts are on so popup overrides stick.
+  return remind;
 }
 
 export async function refreshGoogleIfStale(state: AppState, maxAgeMs = 90_000) {

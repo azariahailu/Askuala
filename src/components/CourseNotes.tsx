@@ -360,8 +360,12 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           note={openNote}
           courseLabel={courseLabel}
           onClose={() => setOpenNote(null)}
-          onRegenerate={async (guideDirections) => {
-            const json = await postJson("/api/notes", { id: openNote.id, regenerateSummary: true, guideDirections }, "PATCH");
+          onRegenerate={async (guideDirections, rebuildFiles) => {
+            const form = new FormData();
+            form.set("regenerateId", openNote.id);
+            form.set("guideDirections", guideDirections);
+            for (const f of rebuildFiles) form.append("files", f);
+            const json = await postForm("/api/notes", form);
             const next = json.notes?.find((n) => n.id === openNote.id);
             if (next) setOpenNote(next);
           }}
@@ -421,12 +425,13 @@ function StudyWindow({
   note: CourseNote;
   courseLabel: string;
   onClose: () => void;
-  onRegenerate: (guideDirections: string) => Promise<void>;
+  onRegenerate: (guideDirections: string, files: File[]) => Promise<void>;
   onRestore?: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [guideDirections, setGuideDirections] = useState("");
+  const [rebuildFiles, setRebuildFiles] = useState<File[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { postForm } = useBuddy();
   const capturedSummary = useRef("");
@@ -549,7 +554,8 @@ function StudyWindow({
                 setBusy(true);
                 setErr("");
                 try {
-                  await onRegenerate(guideDirections);
+                  await onRegenerate(guideDirections, rebuildFiles);
+                  setRebuildFiles([]);
                 } catch (e) {
                   setErr(e instanceof Error ? e.message : "Could not rebuild the study guide");
                 } finally {
@@ -574,6 +580,20 @@ function StudyWindow({
               onChange={(e) => setGuideDirections(e.target.value)}
               placeholder="When you rebuild: extra topics, “change the elasticity section…”, or “keep all of this and add…”"
             />
+            <label className="mb-3 block text-sm text-muted">
+              Add files for this rebuild
+              <input
+                type="file"
+                multiple
+                className="mt-1 block w-full text-sm text-ink"
+                onChange={(e) => setRebuildFiles(Array.from(e.target.files || []))}
+              />
+            </label>
+            {rebuildFiles.length > 0 && (
+              <p className="mb-3 text-xs text-muted">
+                {rebuildFiles.map((f) => f.name).join(", ")} — will be folded into the next rebuild with your directions.
+              </p>
+            )}
             {note.summary ? (
               <div ref={bodyRef} className="text-[15px] leading-relaxed [&_p]:mb-2 [&_strong]:text-base">
                 <ChatMarkdown text={note.summary} />

@@ -70,7 +70,7 @@ export type CourseEvent = {
   allDay: boolean;
   location: string;
   weight: string;
-  source: "syllabus" | "assistant" | "manual" | "google" | "announcement";
+  source: "syllabus" | "assistant" | "manual" | "google" | "announcement" | "feed";
   googleEventId: string | null;
   googleCalendarId: string | null;
   viewOnly: boolean;
@@ -229,6 +229,13 @@ export type AppUser = {
   createdAt: string;
 };
 
+export type CalendarFeed = {
+  id: string;
+  url: string;
+  name: string;
+  lastSyncedAt?: string;
+};
+
 export type AppState = {
   courses: Course[];
   events: CourseEvent[];
@@ -238,6 +245,7 @@ export type AppState = {
   activeChatId: string | null;
   quickPad: QuickPad;
   settings: AppSettings;
+  calendarFeeds: CalendarFeed[];
   firedAlertKeys: string[];
   resume?: PlannerResume;
   resumeStop?: PlannerResume;
@@ -265,6 +273,7 @@ export type PublicSettings = {
   smtpUser?: string;
   geminiConfigured: boolean;
   assistantProvider: string;
+  calendarFeeds: { id: string; name: string; lastSyncedAt?: string }[];
 };
 
 export type ClientState = {

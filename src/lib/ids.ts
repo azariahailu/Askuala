@@ -74,6 +74,7 @@ export function emptyState(): AppState {
     activeChatId: null,
     quickPad: { body: "", todos: [], updatedAt: nowIso() },
     settings: defaultSettings(),
+    calendarFeeds: [],
     firedAlertKeys: [],
     uiText: {},
   };

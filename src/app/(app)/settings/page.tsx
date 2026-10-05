@@ -8,6 +8,7 @@ import { SignInGoogle } from "@/components/SignInGoogle";
 import { GeminiSetup } from "@/components/GeminiSetup";
 import { PhoneAccess } from "@/components/PhoneAccess";
 import { SchoolCalGuide } from "@/components/SchoolCalGuide";
+import { CalendarFeedBox } from "@/components/CalendarFeedBox";
 import { ADMIN_EMAIL } from "@/lib/admin";
 import type { AlertRule } from "@/lib/types";
 
@@ -148,6 +149,8 @@ export default function SettingsPage() {
           <input type="checkbox" checked={popupEnabled} onChange={(e) => setPopupEnabled(e.target.checked)} /> Also try browser popups when this tab is open
         </label>
       </section>
+
+      <CalendarFeedBox />
 
       <section className="rounded-xl border border-line bg-surface p-4 space-y-3">
         <h2 className="font-medium">Google Calendar and Drive</h2>

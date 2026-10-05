@@ -103,6 +103,7 @@ export async function applyPlannerSeed(state: AppState, email?: string | null) {
   state.activeChatId = next.activeChatId ?? state.chats[0]?.id ?? null;
   state.quickPad = next.quickPad || emptyState().quickPad;
   state.settings = next.settings;
+  state.calendarFeeds = next.calendarFeeds || [];
   state.firedAlertKeys = next.firedAlertKeys || [];
   state.resumeStop = next.resumeStop;
   state.lastActiveAt = next.lastActiveAt;

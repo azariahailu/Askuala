@@ -93,9 +93,13 @@ Four-year / degree **names** (future courses with no syllabus) belong on Home as
 
 ---
 
+## Class calendar link (Outlook, Canvas, Blackboard)
+
+Schools that do not use Google Workspace (Outlook only, like Montgomery College) paste a calendar feed here. Unified calendar → Add a class calendar link. Canvas: Calendar → iCal / Calendar feed. Outlook: Share or Publish → ICS link. Events land on Askuala. Google is not required.
+
 ## Google Calendar
 
-- **Sync Google Calendar** after Canvas/Blackboard is on Google. If college email blocks this app, put Canvas on college Google Calendar, subscribe that calendar on a personal Gmail, then Connect with the personal account.
+- Optional. **Sync Google Calendar** if you already keep classes on Google. If college email blocks this app, use a personal Gmail or just paste the class calendar link instead.
 
 When connected:
 
