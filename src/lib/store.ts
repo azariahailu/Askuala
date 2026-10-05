@@ -112,6 +112,7 @@ function hydrateState(parsed: AppState): AppState {
       todos: Array.isArray(parsed.quickPad?.todos) ? parsed.quickPad.todos : [],
       updatedAt: parsed.quickPad?.updatedAt || nowIso(),
     },
+    calendarFeeds: parsed.calendarFeeds ?? [],
     firedAlertKeys: parsed.firedAlertKeys ?? [],
     uiText: parsed.uiText ?? {},
   };
@@ -353,6 +354,7 @@ export function toClient(user: AppUser, state: AppState): ClientState {
       : {}),
     geminiConfigured: Boolean((state.settings.geminiKey || "").trim()),
     assistantProvider: assistantProvider(state.settings),
+    calendarFeeds: (state.calendarFeeds || []).map((f) => ({ id: f.id, name: f.name, lastSyncedAt: f.lastSyncedAt })),
   };
   return {
     me: user,

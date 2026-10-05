@@ -10,6 +10,7 @@ import { EventModal } from "./EventModal";
 import { UpcomingPins } from "./UpcomingPins";
 import { WeeklyPsetBoard } from "./WeeklyPsetBoard";
 import { SchoolCalHint } from "./SchoolCalHint";
+import { CalendarFeedBox } from "./CalendarFeedBox";
 import { SignInGoogle } from "./SignInGoogle";
 import { useBuddy } from "./BuddyProvider";
 import { useTheme } from "./ThemeProvider";
@@ -207,7 +208,8 @@ export function CalendarBoard({ courseId }: { courseId?: string }) {
         </div>
       </div>
       {syncMsg && <p className="text-sm text-gold-2">{syncMsg}</p>}
-      <SchoolCalHint />
+      {!courseId && <SchoolCalHint />}
+      {!courseId && <CalendarFeedBox />}
 
       {!courseId && (
         <div className="relative z-10 -mx-1 flex gap-1 overflow-x-auto pb-1 text-sm">

@@ -10,13 +10,19 @@ function ensurePdfDom() {
 
 async function pdfText(data: Buffer) {
   ensurePdfDom();
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data });
   try {
-    const result = await parser.getText();
+    const pdfParse = (await import("pdf-parse")).default;
+    const result = await pdfParse(data);
     return result.text || "";
-  } finally {
-    await parser.destroy();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/Cannot find module|MODULE_NOT_FOUND/i.test(message)) {
+      throw new Error("PDF reading is unavailable right now. Paste the syllabus text from Canvas, or try again in a minute.");
+    }
+    if (/Invalid PDF|encrypted|password/i.test(message)) {
+      throw new Error("That PDF could not be read. Paste the syllabus text from Canvas instead.");
+    }
+    throw err;
   }
 }
 

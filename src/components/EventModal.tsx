@@ -247,12 +247,12 @@ export function EventModal({
                   const on = e.target.checked;
                   setGoogleAlerts(on);
                   if (on && alerts.length === 0) {
-                    setAlerts([{ id: nanoid(), amount: 0, unit: "minutes", channel: "popup" }]);
+                    setAlerts([{ id: nanoid(), amount: 10, unit: "minutes", channel: "popup" }]);
                   }
                 }}
               />
               <span>
-                Notify me on my phone via the Google Calendar app. This writes one popup reminder (default: 10 minutes before) on your primary calendar. Email reminders are separate and optional: they will not ping the phone. Use the Google Calendar app, not Apple Calendar.
+                Notify me on my phone via the Google Calendar app. This writes a popup reminder (default: 10 minutes before) on your primary calendar. Use the Google Calendar app on your phone, not Apple Calendar. Email reminders are separate and will not ping the phone.
               </span>
             </label>
             {googleAlerts && (

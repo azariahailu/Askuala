@@ -40,6 +40,64 @@ async function textFromNoteAttachments(userId: string, note: CourseNote) {
 export async function POST(req: Request) {
   try {
     const form = await req.formData();
+    const regenerateId = String(form.get("regenerateId") || "");
+    if (regenerateId) {
+      return await mutate(async (state, userId) => {
+        const note = state.notes.find((n) => n.id === regenerateId);
+        if (!note) throw new Error("Note not found");
+        const guideDirections = String(form.get("guideDirections") || "");
+        const files = form.getAll("files").filter((f): f is File => f instanceof File);
+        const newAttachments: Attachment[] = [];
+        const fileBufs: Record<string, Buffer> = {};
+        for (const file of files) {
+          const saved = await saveUpload(userId, file, file.name);
+          const att: Attachment = {
+            id: nid(),
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            size: saved.size,
+            path: saved.filename,
+            createdAt: nowIso(),
+          };
+          newAttachments.push(att);
+          if (saved.buf) fileBufs[saved.filename] = saved.buf;
+        }
+        const course = state.courses.find((c) => c.id === note.courseId);
+        const fromOld = await textFromNoteAttachments(userId, note);
+        const fromNew = await textFromUploads(
+          newAttachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] })),
+        );
+        if (newAttachments.length) note.attachments = [...(note.attachments || []), ...newAttachments];
+        const extraMaterials = [fromOld, fromNew].filter(Boolean).join("\n\n");
+        const prior = note.summary;
+        note.summary = await generateStudySummary({
+          transcript: note.transcript,
+          title: note.title,
+          body: note.body,
+          course,
+          settings: state.settings,
+          existing: note.summary,
+          directions: guideDirections,
+          extraMaterials,
+        });
+        if (prior.trim() && prior !== note.summary) note.summaryPrevious = prior;
+        if (note.summary.trim() && note.summary !== prior) {
+          note.summaryReadyAt = nowIso();
+          note.studyPdfDriveUrl = undefined;
+          note.studyPdfPath = undefined;
+        }
+        note.updatedAt = nowIso();
+        try {
+          if (note.summary.trim()) await ensureCourseDriveTree(state, course);
+          if (newAttachments.length) {
+            await pushNoteUploadsToDrive(state, userId, note, course, { files: fileBufs });
+          }
+        } catch {
+          /* guide still saved */
+        }
+        return { note };
+      });
+    }
     const courseId = String(form.get("courseId") || "");
     const kind = String(form.get("kind") || "note") as NoteKind;
     const title = String(form.get("title") || "Untitled");

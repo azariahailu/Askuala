@@ -96,7 +96,7 @@ const SCENES: Scene[] = [
   },
   {
     t: "Google Calendar + Drive",
-    d: "Connect after Canvas is on Google. We import every calendar you checked. Files go to Drive → Askuala.",
+    d: "Or paste a Canvas, Blackboard, or Outlook calendar link. Google is optional. Files can still go to Drive.",
     kind: "google",
     path: "askualastudy.vercel.app/calendar",
     nav: "Calendar",
