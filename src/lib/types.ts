@@ -100,6 +100,8 @@ export type CourseNote = {
   audioPath: string | null;
   audioDriveUrl?: string;
   studyPdfDriveUrl?: string;
+  /** Stable Drive file id so a later rebuild replaces the same PDF instead of creating a duplicate. */
+  studyPdfDriveFileId?: string;
   /** Rendered print-style PDF stored for Drive (graphs/tables), not the raw-text fallback. */
   studyPdfPath?: string;
   /** Bump to recapture Drive PDFs after a renderer fix. */

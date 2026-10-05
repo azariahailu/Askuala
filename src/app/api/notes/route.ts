@@ -83,6 +83,7 @@ export async function POST(req: Request) {
         if (prior.trim() && prior !== note.summary) note.summaryPrevious = prior;
         if (note.summary.trim() && note.summary !== prior) {
           note.summaryReadyAt = nowIso();
+          // Keep studyPdfDriveFileId so the next Drive push replaces the same file.
           note.studyPdfDriveUrl = undefined;
           note.studyPdfPath = undefined;
         }
@@ -220,6 +221,7 @@ export async function PATCH(req: Request) {
         if (prior.trim() && prior !== note.summary) note.summaryPrevious = prior;
         if (note.summary.trim() && note.summary !== prior) {
           note.summaryReadyAt = nowIso();
+          // Keep studyPdfDriveFileId so the next Drive push replaces the same file.
           note.studyPdfDriveUrl = undefined;
           note.studyPdfPath = undefined;
         }
