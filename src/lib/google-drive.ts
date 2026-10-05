@@ -148,6 +148,7 @@ export function resetDriveCatalog(state: AppState) {
   for (const note of state.notes) {
     note.audioDriveUrl = undefined;
     note.studyPdfDriveUrl = undefined;
+    note.studyPdfDriveFileId = undefined;
     for (const file of note.attachments) {
       file.driveUrl = undefined;
       file.driveFileId = undefined;
@@ -383,6 +384,7 @@ export async function pushBytesToDrive(opts: {
   if (existing && opts.replace) {
     const updated = await ready.drive.files.update({
       fileId: existing.id,
+      requestBody: { name: driveName(opts.displayName) },
       media: { mimeType: opts.mime || "application/octet-stream", body: Readable.from(buf) },
       fields: "id,webViewLink",
     });
@@ -479,17 +481,44 @@ export async function pushStudyPdfToDrive(opts: {
   buf: Buffer;
   filename: string;
 }) {
+  const displayName = driveName(opts.filename);
+  const ready = await ensureAskualaDrive(opts.state);
+  if (!ready.ok) return { ok: false as const, reason: ready.reason };
+
+  // Prefer the known Drive file id so a rebuild after 12h overwrites the same PDF
+  // and renames it to the current note title (instead of leaving an orphan).
+  if (opts.note.studyPdfDriveFileId) {
+    try {
+      const updated = await ready.drive.files.update({
+        fileId: opts.note.studyPdfDriveFileId,
+        requestBody: { name: displayName },
+        media: { mimeType: "application/pdf", body: Readable.from(opts.buf) },
+        fields: "id,webViewLink",
+      });
+      const id = updated.data.id || opts.note.studyPdfDriveFileId;
+      const url = updated.data.webViewLink || opts.note.studyPdfDriveUrl || "";
+      opts.note.studyPdfDriveFileId = id;
+      opts.note.studyPdfDriveUrl = url;
+      return { ok: true as const, id, url };
+    } catch {
+      opts.note.studyPdfDriveFileId = undefined;
+    }
+  }
+
   const hit = await pushBytesToDrive({
     state: opts.state,
     userId: opts.userId,
     course: opts.course,
     kind: "outputs",
-    displayName: opts.filename,
+    displayName,
     mime: "application/pdf",
     buf: opts.buf,
     replace: true,
   });
-  if (hit.ok) opts.note.studyPdfDriveUrl = hit.url;
+  if (hit.ok) {
+    opts.note.studyPdfDriveUrl = hit.url;
+    opts.note.studyPdfDriveFileId = hit.id;
+  }
   return hit;
 }
 
