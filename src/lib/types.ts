@@ -108,6 +108,8 @@ export type CourseNote = {
   studyPdfFmt?: number;
   /** When the current study guide text was last written. Drive PDF waits 12 hours after this. */
   summaryReadyAt?: string;
+  /** Last rebuild instructions so the directions box keeps them after rebuild / reopen. */
+  guideDirections?: string;
   attachments: Attachment[];
   createdAt: string;
   updatedAt: string;

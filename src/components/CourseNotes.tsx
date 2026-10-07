@@ -437,7 +437,7 @@ function StudyWindow({
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [guideDirections, setGuideDirections] = useState("");
+  const [guideDirections, setGuideDirections] = useState(note.guideDirections || "");
   const [rebuildFiles, setRebuildFiles] = useState<File[]>([]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.summary || "");
@@ -450,6 +450,10 @@ function StudyWindow({
   useEffect(() => {
     if (!editing) setDraft(note.summary || "");
   }, [note.summary, note.id, editing]);
+
+  useEffect(() => {
+    setGuideDirections(note.guideDirections || "");
+  }, [note.id, note.guideDirections]);
 
   useEffect(() => {
     if (!note.summary || capturedSummary.current === note.summary) return;
