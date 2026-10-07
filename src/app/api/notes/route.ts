@@ -46,6 +46,7 @@ export async function POST(req: Request) {
         const note = state.notes.find((n) => n.id === regenerateId);
         if (!note) throw new Error("Note not found");
         const guideDirections = String(form.get("guideDirections") || "");
+        note.guideDirections = guideDirections;
         const files = form.getAll("files").filter((f): f is File => f instanceof File);
         const newAttachments: Attachment[] = [];
         const fileBufs: Record<string, Buffer> = {};
@@ -162,6 +163,7 @@ export async function POST(req: Request) {
         transcript,
         summary: study,
         summaryReadyAt: study.trim() ? nowIso() : undefined,
+        guideDirections: summary || undefined,
         audioPath,
         attachments,
         createdAt: nowIso(),
@@ -212,6 +214,8 @@ export async function PATCH(req: Request) {
         const course = state.courses.find((c) => c.id === note.courseId);
         const extraMaterials = await textFromNoteAttachments(userId, note);
         const prior = note.summary;
+        const guideDirections = String(body.guideDirections || "");
+        note.guideDirections = guideDirections;
         note.summary = await generateStudySummary({
           transcript: note.transcript,
           title: note.title,
@@ -219,7 +223,7 @@ export async function PATCH(req: Request) {
           course,
           settings: state.settings,
           existing: note.summary,
-          directions: String(body.guideDirections || ""),
+          directions: guideDirections,
           extraMaterials,
         });
         if (prior.trim() && prior !== note.summary) note.summaryPrevious = prior;
