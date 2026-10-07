@@ -369,6 +369,11 @@ export function CourseNotes({ courseId }: { courseId: string }) {
             const next = json.notes?.find((n) => n.id === openNote.id);
             if (next) setOpenNote(next);
           }}
+          onSaveSummary={async (summary) => {
+            const json = await postJson("/api/notes", { id: openNote.id, saveSummary: true, summary }, "PATCH");
+            const next = json.notes?.find((n) => n.id === openNote.id);
+            if (next) setOpenNote(next);
+          }}
           onRestore={
             openNote.summaryPrevious
               ? async () => {
@@ -420,23 +425,31 @@ function StudyWindow({
   courseLabel,
   onClose,
   onRegenerate,
+  onSaveSummary,
   onRestore,
 }: {
   note: CourseNote;
   courseLabel: string;
   onClose: () => void;
   onRegenerate: (guideDirections: string, files: File[]) => Promise<void>;
+  onSaveSummary: (summary: string) => Promise<void>;
   onRestore?: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [guideDirections, setGuideDirections] = useState("");
   const [rebuildFiles, setRebuildFiles] = useState<File[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note.summary || "");
   const bodyRef = useRef<HTMLDivElement>(null);
   const { postForm } = useBuddy();
   const capturedSummary = useRef("");
   const dateLabel = note.catalogDate || note.createdAt.slice(0, 10);
-  const canExport = Boolean(note.summary);
+  const canExport = Boolean(note.summary) && !editing;
+
+  useEffect(() => {
+    if (!editing) setDraft(note.summary || "");
+  }, [note.summary, note.id, editing]);
 
   useEffect(() => {
     if (!note.summary || capturedSummary.current === note.summary) return;
@@ -531,7 +544,19 @@ function StudyWindow({
             <button
               type="button"
               className="rounded-lg px-3 py-1 text-sm text-gold-2 disabled:opacity-40"
-              disabled={busy || !onRestore}
+              disabled={busy || !note.summary}
+              onClick={() => {
+                setErr("");
+                setDraft(note.summary || "");
+                setEditing(true);
+              }}
+            >
+              Edit guide
+            </button>
+            <button
+              type="button"
+              className="rounded-lg px-3 py-1 text-sm text-gold-2 disabled:opacity-40"
+              disabled={busy || !onRestore || editing}
               onClick={async () => {
                 if (!onRestore) return;
                 setBusy(true);
@@ -549,7 +574,7 @@ function StudyWindow({
             </button>
             <button
               className="rounded-lg px-3 py-1 text-sm text-gold-2"
-              disabled={busy}
+              disabled={busy || editing}
               onClick={async () => {
                 setBusy(true);
                 setErr("");
@@ -573,36 +598,91 @@ function StudyWindow({
         {err && <p className="px-5 pt-2 text-sm text-red-400">{err}</p>}
         <div className="grid min-h-0 flex-1 gap-6 overflow-auto p-6 md:grid-cols-5">
           <section className="md:col-span-3">
-            <h3 className="mb-2 text-sm font-medium text-gold-2">Study summary</h3>
-            <textarea
-              className="mb-3 min-h-16 w-full bg-input p-2 text-sm"
-              value={guideDirections}
-              onChange={(e) => setGuideDirections(e.target.value)}
-              placeholder="When you rebuild: extra topics, “change the elasticity section…”, or “keep all of this and add…”"
-            />
-            <label className="mb-3 block text-sm text-muted">
-              Add files for this rebuild
-              <input
-                type="file"
-                multiple
-                className="mt-1 block w-full text-sm text-ink"
-                onChange={(e) => setRebuildFiles(Array.from(e.target.files || []))}
-              />
-            </label>
-            {rebuildFiles.length > 0 && (
-              <p className="mb-3 text-xs text-muted">
-                {rebuildFiles.map((f) => f.name).join(", ")} — will be folded into the next rebuild with your directions.
-              </p>
+            <h3 className="mb-2 text-sm font-medium text-gold-2">Study guide</h3>
+            {!editing && (
+              <>
+                <textarea
+                  className="mb-3 min-h-16 w-full bg-input p-2 text-sm"
+                  value={guideDirections}
+                  onChange={(e) => setGuideDirections(e.target.value)}
+                  placeholder="Rebuild directions (optional): add a topic or fix a section. Guides stay full lecture notes either way."
+                />
+                <label className="mb-3 block text-sm text-muted">
+                  Add files for this rebuild
+                  <input
+                    type="file"
+                    multiple
+                    className="mt-1 block w-full text-sm text-ink"
+                    onChange={(e) => setRebuildFiles(Array.from(e.target.files || []))}
+                  />
+                </label>
+                {rebuildFiles.length > 0 && (
+                  <p className="mb-3 text-xs text-muted">
+                    {rebuildFiles.map((f) => f.name).join(", ")} — will be folded into the next rebuild with your directions.
+                  </p>
+                )}
+              </>
             )}
-            {note.summary ? (
-              <div ref={bodyRef} className="text-[15px] leading-relaxed [&_p]:mb-2 [&_strong]:text-base">
+            {editing ? (
+              <div className="mb-3">
+                <textarea
+                  className="min-h-[28rem] w-full bg-input p-3 font-mono text-sm leading-relaxed text-ink"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  spellCheck={false}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-gold/40 px-3 py-2 text-sm text-gold-2 disabled:opacity-40"
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      setErr("");
+                      try {
+                        await onSaveSummary(draft);
+                        setEditing(false);
+                      } catch (e) {
+                        setErr(e instanceof Error ? e.message : "Could not save the study guide");
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    {busy ? "Saving…" : "Save guide"}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg px-3 py-2 text-sm text-muted"
+                    disabled={busy}
+                    onClick={() => {
+                      setDraft(note.summary || "");
+                      setEditing(false);
+                      setErr("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-muted">Markdown edit mode. Graphs use fenced <code className="buddy-inline-code">graph</code> blocks; code uses language fences.</p>
+              </div>
+            ) : note.summary ? (
+              <div
+                ref={bodyRef}
+                className="cursor-text rounded-xl border border-transparent p-1 text-[15px] leading-relaxed hover:border-line [&_p]:mb-2 [&_strong]:text-base"
+                onDoubleClick={() => {
+                  setDraft(note.summary || "");
+                  setEditing(true);
+                }}
+                title="Double-click to edit"
+              >
                 <ChatMarkdown text={note.summary} />
               </div>
             ) : (
-              <div className="text-[15px] leading-relaxed">No summary yet: add a transcript and save, then rebuild.</div>
+              <div className="text-[15px] leading-relaxed">No guide yet: add a transcript and save, then rebuild.</div>
             )}
             <p className="mb-3 text-xs text-muted">
-              Rebuild now, then look in Google Drive for <strong>Askuala</strong> → year → term → {courseLabel || "this course"} → Files and Voice recordings. That tree is created when you build: not before. Later terms and courses get their own folders. The PDF in Files is the same print layout (graphs and tables) and lands 12 hours after the last rebuild. Lecture uploads stay in Askuala, not Drive.
+              Voice recordings can sync to Drive under Askuala → course → Voice recordings. Study-guide PDFs wait 12 hours after the last rebuild. Lecture file uploads stay in Askuala, not Drive.
             </p>
             {note.studyPdfDriveUrl && (
               <a className="mt-2 inline-block text-xs text-gold-2 underline" href={note.studyPdfDriveUrl} target="_blank" rel="noreferrer">

@@ -16,14 +16,14 @@ export async function POST(req: Request) {
     return await mutate(async (state, userId) => {
       const note = state.notes.find((n) => n.id === noteId);
       if (!note) throw new Error("Note not found");
-      const recapture = note.studyPdfFmt !== 2;
       const saved = await saveUpload(userId, file, `${noteId}-print.pdf`);
       note.studyPdfPath = saved.filename;
       note.studyPdfFmt = 2;
       note.updatedAt = nowIso();
+      // Store locally only. Drive gets the PDF after 12 hours without a rebuild — never on create.
       const ready = Date.parse(note.summaryReadyAt || note.createdAt || "");
       const due = Number.isFinite(ready) && Date.now() - ready >= STUDY_PDF_DRIVE_DELAY_MS;
-      if (recapture || due) {
+      if (due && !note.studyPdfDriveUrl) {
         try {
           await pushStudy(state, userId, note);
         } catch {

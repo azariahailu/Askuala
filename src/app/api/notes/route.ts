@@ -88,14 +88,6 @@ export async function POST(req: Request) {
           note.studyPdfPath = undefined;
         }
         note.updatedAt = nowIso();
-        try {
-          if (note.summary.trim()) await ensureCourseDriveTree(state, course);
-          if (newAttachments.length) {
-            await pushNoteUploadsToDrive(state, userId, note, course, { files: fileBufs });
-          }
-        } catch {
-          /* guide still saved */
-        }
         return { note };
       });
     }
@@ -176,11 +168,15 @@ export async function POST(req: Request) {
         updatedAt: nowIso(),
       };
       state.notes.push(note);
-      try {
-        if (study.trim()) await ensureCourseDriveTree(state, course);
-        await pushNoteUploadsToDrive(state, userId, note, course, { files: fileBufs, audio: audioBuf });
-      } catch {
-        /* local note still saved */
+      // Lecture file uploads stay on Askuala. Only voice can sync to Drive (course Voice folder).
+      // Study-guide PDFs wait 12 hours — never push on create.
+      if (audioPath) {
+        try {
+          await ensureCourseDriveTree(state, course);
+          await pushNoteUploadsToDrive(state, userId, note, course, { audio: audioBuf });
+        } catch {
+          /* local note still saved */
+        }
       }
       return { note };
     });
@@ -195,7 +191,15 @@ export async function PATCH(req: Request) {
     return await mutate(async (state, userId) => {
       const note = state.notes.find((n) => n.id === body.id);
       if (!note) throw new Error("Note not found");
-      if (body.restoreSummary) {
+      if (body.saveSummary && typeof body.summary === "string") {
+        const prior = note.summary;
+        const next = body.summary;
+        if (prior.trim() && prior !== next) note.summaryPrevious = prior;
+        note.summary = next;
+        note.summaryReadyAt = nowIso();
+        note.studyPdfDriveUrl = undefined;
+        note.studyPdfPath = undefined;
+      } else if (body.restoreSummary) {
         const prev = (note.summaryPrevious || "").trim();
         if (!prev) throw new Error("No previous study guide is saved for this note.");
         const current = note.summary;
@@ -224,13 +228,6 @@ export async function PATCH(req: Request) {
           // Keep studyPdfDriveFileId so the next Drive push replaces the same file.
           note.studyPdfDriveUrl = undefined;
           note.studyPdfPath = undefined;
-        }
-        if (note.summary.trim()) {
-          try {
-            await ensureCourseDriveTree(state, course);
-          } catch {
-            /* guide still saved */
-          }
         }
       } else {
         Object.assign(note, { ...body, updatedAt: nowIso(), id: note.id });

@@ -7,7 +7,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
-import { parseStudyGraph } from "@/lib/study-graph";
+import { looksLikeChartMarkup, looksLikeGraphDsl, parseStudyGraph } from "@/lib/study-graph";
 import { normalizeStudyMarkdown } from "@/lib/study-markdown";
 import { codeFromPreChildren, StudyCodeBlock } from "./StudyCodeBlock";
 import { StudyGraph } from "./StudyGraph";
@@ -42,7 +42,23 @@ function MarkdownBody({ text }: { text: string }) {
             const graph = graphFromPre(children);
             if (graph) return graph;
             const chunk = codeFromPreChildren(children);
-            if (chunk) return <StudyCodeBlock lang={chunk.lang} code={chunk.code} />;
+            if (chunk) {
+              const chartish =
+                looksLikeGraphDsl(chunk.code) ||
+                looksLikeChartMarkup(chunk.code) ||
+                (/^(graph|econ-graph|xygraph|figure|mermaid)$/i.test(chunk.lang) && !/^(python|r|java)/i.test(chunk.lang));
+              const fakeChartLang =
+                /^(css|html|htm|svg)$/i.test(chunk.lang) && (looksLikeChartMarkup(chunk.code) || /(supply|demand|axis|equilibrium|indifference)/i.test(chunk.code));
+              if (chartish || fakeChartLang) {
+                return (
+                  <p className="my-3 text-sm text-muted">
+                    Figure could not be drawn. Rebuild so graphs use Askuala <code className="buddy-inline-code">graph</code> fences
+                    (rendered as SVG).
+                  </p>
+                );
+              }
+              return <StudyCodeBlock lang={chunk.lang} code={chunk.code} />;
+            }
             return (
               <div className="buddy-scroll">
                 <pre>{children}</pre>
