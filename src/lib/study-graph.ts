@@ -17,6 +17,28 @@ export function isStudyGraphLang(lang: string) {
   return GRAPH_LANG.test((lang || "").replace(/^language-/, ""));
 }
 
+/** True when the fence body is Askuala graph DSL even if the language tag was wrong. */
+export function looksLikeGraphDsl(text: string) {
+  const t = (text || "").trim();
+  if (!t) return false;
+  if (/^\s*\{/.test(t) && /"curves"\s*:/.test(t)) return true;
+  const hasAxes = /^\s*(title|x|y|xlabel|ylabel)\s*:/im.test(t);
+  const hasCurve = /^\s*[A-Za-z][A-Za-z0-9′']*\s*:\s*-?[\d.]/m.test(t) || /^\s*eq\s*:/im.test(t);
+  return hasAxes && hasCurve;
+}
+
+/** CSS/HTML/SVG chart attempts that must never show as “code” in a study guide. */
+export function looksLikeChartMarkup(text: string) {
+  const t = (text || "").trim();
+  if (!t) return false;
+  if (/<\/?svg[\s>]/i.test(t) || /<\/?canvas[\s>]/i.test(t)) return true;
+  if (/<\/?(div|style|span)[\s>]/i.test(t) && /(graph|chart|axis|supply|demand|plot)/i.test(t)) return true;
+  if (/(^|\n)\s*\.[a-z][\w-]*\s*\{[^}]*\}/i.test(t) && /(width|height|border|background)\s*:/i.test(t) && /(axis|supply|demand|curve|chart|graph|plot)/i.test(t)) {
+    return true;
+  }
+  return false;
+}
+
 export function parseStudyGraph(lang: string, raw: string): StudyGraphSpec | null {
   const text = (raw || "").trim();
   if (!text) return null;
@@ -24,7 +46,8 @@ export function parseStudyGraph(lang: string, raw: string): StudyGraphSpec | nul
     const gnu = parseGnuplotGraph(text);
     if (gnu) return gnu;
   }
-  if (!isStudyGraphLang(lang) && !looksLikeGnuplot(lang, text)) return null;
+  const tagged = isStudyGraphLang(lang) || looksLikeGnuplot(lang, text) || looksLikeGraphDsl(text);
+  if (!tagged) return null;
   const fromJson = parseJsonGraph(text);
   if (fromJson) return fromJson;
   return parseLineGraph(text);
