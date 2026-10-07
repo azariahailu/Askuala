@@ -59,9 +59,9 @@ export function studyGuideHtml(opts: {
     }
     .buddy-code {
       margin: 0.9em 0;
-      border: 1px solid #3a3428;
+      border: 1px solid #333333;
       border-radius: 0.5rem;
-      background: #1c1914;
+      background: #1e1e1e;
       overflow: visible;
       break-inside: avoid;
       page-break-inside: avoid;
@@ -73,9 +73,9 @@ export function studyGuideHtml(opts: {
       font-size: 0.68rem;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: #b8ae98;
-      border-bottom: 1px solid #3a3428;
-      background: #161410;
+      color: #858585;
+      border-bottom: 1px solid #333333;
+      background: #252526;
     }
     .buddy-code-scroll { overflow: visible !important; margin: 0; }
     .buddy-code-pre, .buddy-md pre {
@@ -83,11 +83,11 @@ export function studyGuideHtml(opts: {
       padding: 0.75rem 0.85rem;
       background: transparent;
       border: 0;
-      color: #f4f1ea;
+      color: #d4d4d4;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       word-break: break-word;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: Consolas, "Courier New", ui-monospace, monospace;
       font-size: 0.82rem;
       line-height: 1.45;
     }
@@ -100,14 +100,19 @@ export function studyGuideHtml(opts: {
       font-size: inherit;
       white-space: inherit;
     }
-    .buddy-md .hljs-keyword, .buddy-md .hljs-selector-tag, .buddy-md .hljs-built_in { color: #d4a24c; }
-    .buddy-md .hljs-string, .buddy-md .hljs-attr { color: #8fbf88; }
-    .buddy-md .hljs-number, .buddy-md .hljs-literal { color: #7eb6d6; }
-    .buddy-md .hljs-comment, .buddy-md .hljs-quote { color: #8b93a7; font-style: italic; }
-    .buddy-md .hljs-title, .buddy-md .hljs-section, .buddy-md .hljs-function .hljs-title { color: #e0c37a; }
-    .buddy-md .hljs-params, .buddy-md .hljs-variable, .buddy-md .hljs-template-variable { color: #c9c3b8; }
-    .buddy-md .hljs-type, .buddy-md .hljs-class .hljs-title { color: #9ec3e6; }
-    .buddy-md .hljs-meta, .buddy-md .hljs-doctag { color: #b8ae98; }
+    /* VS Code Dark+ token colors in PDF/print */
+    .buddy-md .hljs-keyword, .buddy-md .hljs-selector-tag { color: #569cd6; }
+    .buddy-md .hljs-built_in { color: #4ec9b0; }
+    .buddy-md .hljs-string, .buddy-md .hljs-symbol { color: #ce9178; }
+    .buddy-md .hljs-attr { color: #9cdcfe; }
+    .buddy-md .hljs-number { color: #b5cea8; }
+    .buddy-md .hljs-literal { color: #569cd6; }
+    .buddy-md .hljs-comment, .buddy-md .hljs-quote { color: #6a9955; font-style: italic; }
+    .buddy-md .hljs-title, .buddy-md .hljs-section, .buddy-md .hljs-function .hljs-title { color: #dcdcaa; }
+    .buddy-md .hljs-params, .buddy-md .hljs-variable, .buddy-md .hljs-template-variable, .buddy-md .hljs-property { color: #9cdcfe; }
+    .buddy-md .hljs-type, .buddy-md .hljs-class .hljs-title, .buddy-md .hljs-name { color: #4ec9b0; }
+    .buddy-md .hljs-meta, .buddy-md .hljs-doctag { color: #9b9b9b; }
+    .buddy-md .hljs-regexp, .buddy-md .hljs-link { color: #d16969; }
     .study-graph svg { display: block; max-width: 100%; height: auto; }
     .study-graph figcaption { color: #6b6458; font-size: 0.9rem; margin-top: 0.4rem; }
     .kicker { font-family: "Source Sans 3", sans-serif; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; color: #8a5a00; margin: 2rem 0 0.5rem; }

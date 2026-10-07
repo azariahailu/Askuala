@@ -181,7 +181,7 @@ Transcript and files:
 Math: dollar-delimited LaTeX (inline and display). GitHub-flavored markdown tables.
 
 Code (CS, stats, data science, algorithms, programming lectures):
-- Put examples in fenced markdown blocks with a language tag: python, r, java, c, cpp, sql, javascript, typescript, bash, matlab, or plaintext.
+- Put examples in fenced markdown blocks with the real language tag (python, r, java, c, cpp, csharp, sql, javascript, typescript, go, rust, bash, matlab, julia, plaintext, or whatever the course used).
 - Prefer short, correct snippets that match the lecture; comment the key lines. Inline names with \`backticks\`.
 - When the session is code-heavy, include a ## Code section (or fold examples under ## Worked examples). Never leave code as a plain indented paragraph only.
 
