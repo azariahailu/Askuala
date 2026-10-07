@@ -9,6 +9,7 @@ import "katex/dist/katex.min.css";
 
 import { parseStudyGraph } from "@/lib/study-graph";
 import { normalizeStudyMarkdown } from "@/lib/study-markdown";
+import { codeFromPreChildren, StudyCodeBlock } from "./StudyCodeBlock";
 import { StudyGraph } from "./StudyGraph";
 
 export function ChatMarkdown({ text }: { text: string }) {
@@ -40,11 +41,18 @@ function MarkdownBody({ text }: { text: string }) {
           pre: ({ children }) => {
             const graph = graphFromPre(children);
             if (graph) return graph;
+            const chunk = codeFromPreChildren(children);
+            if (chunk) return <StudyCodeBlock lang={chunk.lang} code={chunk.code} />;
             return (
               <div className="buddy-scroll">
                 <pre>{children}</pre>
               </div>
             );
+          },
+          code: ({ className, children }) => {
+            const isBlock = /language-/.test(className || "");
+            if (isBlock) return <code className={className}>{children}</code>;
+            return <code className="buddy-inline-code">{children}</code>;
           },
         }}
       >
@@ -57,7 +65,7 @@ function MarkdownBody({ text }: { text: string }) {
 function graphFromPre(children: ReactNode) {
   const child = Children.toArray(children)[0];
   if (!isValidElement<{ className?: string; children?: ReactNode }>(child)) return null;
-  const lang = /language-([\w-]+)/.exec(child.props.className || "")?.[1] || "";
+  const lang = /language-([\w+#-]+)/.exec(child.props.className || "")?.[1] || "";
   const value = String(child.props.children || "").replace(/\n$/, "");
   const spec = parseStudyGraph(lang, value);
   return spec ? <StudyGraph spec={spec} /> : null;

@@ -107,7 +107,8 @@ Required:
 - Start with a heading for the new topic (e.g. ## Indifference curves).
 - Teach it at lecture depth (definitions, intuition, graph if it needs one, a worked example).
 - If they asked for graphs, output only new \`\`\`graph fences (and a short caption each). Do not rewrite Core ideas.
-- Graph fences must use language graph as in other Askuala guides. Never gnuplot, matplotlib, mermaid, tikz, SVG, or Python.
+- If they asked for code, output fenced blocks with a real language tag (python, r, java, c, cpp, sql, etc.).
+- Graph fences must use language graph as in other Askuala guides. Never gnuplot, matplotlib, mermaid, tikz, or SVG for graphs.
 
 Course: ${course?.code || ""} ${course?.name || ""}`,
         },
@@ -179,6 +180,11 @@ Transcript and files:
 
 Math: dollar-delimited LaTeX (inline and display). GitHub-flavored markdown tables.
 
+Code (CS, stats, data science, algorithms, programming lectures):
+- Put examples in fenced markdown blocks with a language tag: python, r, java, c, cpp, sql, javascript, typescript, bash, matlab, or plaintext.
+- Prefer short, correct snippets that match the lecture; comment the key lines. Inline names with \`backticks\`.
+- When the session is code-heavy, include a ## Code section (or fold examples under ## Worked examples). Never leave code as a plain indented paragraph only.
+
 Graphs and diagrams (economics, physics, calc, stats, chemistry: any course that uses them):
 - If the session uses a graph, plot, or shift (supply/demand, cost, PPF, IS-LM, indifference, budget, tax wedge, surplus, MC/ATC, labor market, externalities, Lorenz, phase diagram, free-body, etc.), you MUST draw it. Do not only describe it in words.
 - NEVER use gnuplot, matplotlib, mermaid, tikz, SVG, HTML, or Python. Askuala only draws fences whose language is exactly \`graph\` (not \`graph\` with \`lang: gnuplot\` inside).
@@ -208,10 +214,13 @@ Use these headings:
 ## What to know
 ## Core ideas
 ## Graphs
+## Code
 ## Key terms
 ## Worked examples
 ## How this fits the course
-## How to study this (questions to quiz yourself)`,
+## How to study this (questions to quiz yourself)
+
+Omit ## Graphs or ## Code when that session has none.`
       },
       { role: "user", content: src.slice(0, 28000) },
     ],
