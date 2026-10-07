@@ -189,13 +189,24 @@ async function blocks(nodes: MdNode[]): Promise<(Paragraph | Table)[]> {
           }),
         );
       } else {
-        out.push(
-          new Paragraph({
-            shading: { type: ShadingType.CLEAR, fill: "F6F1E6" },
-            spacing: { after: 160 },
-            children: [new TextRun({ text: n.value || "", font: "Consolas", size: 18, color: INK })],
-          }),
-        );
+        if (n.lang) {
+          out.push(
+            new Paragraph({
+              spacing: { before: 120, after: 40 },
+              children: [new TextRun({ text: String(n.lang).toUpperCase(), font: "Consolas", size: 16, color: GOLD, bold: true })],
+            }),
+          );
+        }
+        for (const line of (n.value || "").split("\n")) {
+          out.push(
+            new Paragraph({
+              shading: { type: ShadingType.CLEAR, fill: "1C1914" },
+              spacing: { after: 0 },
+              children: [new TextRun({ text: line.length ? line : " ", font: "Consolas", size: 17, color: "F4F1EA" })],
+            }),
+          );
+        }
+        out.push(new Paragraph({ spacing: { after: 160 }, children: [] }));
       }
     } else if (n.type === "math") {
       out.push(

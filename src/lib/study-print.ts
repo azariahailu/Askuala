@@ -49,6 +49,65 @@ export function studyGuideHtml(opts: {
     .buddy-md th { background: #efe0b8; font-family: "Source Sans 3", sans-serif; }
     .buddy-scroll { overflow-x: auto; margin: 0.8em 0; }
     .buddy-md .katex-display { overflow-x: auto; }
+    .buddy-md code, .buddy-inline-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88em;
+      background: #efe8d8;
+      border: 1px solid #d4c4a0;
+      border-radius: 0.25rem;
+      padding: 0.08em 0.3em;
+    }
+    .buddy-code {
+      margin: 0.9em 0;
+      border: 1px solid #3a3428;
+      border-radius: 0.5rem;
+      background: #1c1914;
+      overflow: visible;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .buddy-code-lang {
+      margin: 0;
+      padding: 0.3rem 0.7rem;
+      font-family: "Source Sans 3", ui-sans-serif, sans-serif;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #b8ae98;
+      border-bottom: 1px solid #3a3428;
+      background: #161410;
+    }
+    .buddy-code-scroll { overflow: visible !important; margin: 0; }
+    .buddy-code-pre, .buddy-md pre {
+      margin: 0;
+      padding: 0.75rem 0.85rem;
+      background: transparent;
+      border: 0;
+      color: #f4f1ea;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+    .buddy-code-pre code, .buddy-md pre code,
+    .buddy-code code {
+      background: none !important;
+      border: 0 !important;
+      padding: 0 !important;
+      color: inherit;
+      font-size: inherit;
+      white-space: inherit;
+    }
+    .buddy-md .hljs-keyword, .buddy-md .hljs-selector-tag, .buddy-md .hljs-built_in { color: #d4a24c; }
+    .buddy-md .hljs-string, .buddy-md .hljs-attr { color: #8fbf88; }
+    .buddy-md .hljs-number, .buddy-md .hljs-literal { color: #7eb6d6; }
+    .buddy-md .hljs-comment, .buddy-md .hljs-quote { color: #8b93a7; font-style: italic; }
+    .buddy-md .hljs-title, .buddy-md .hljs-section, .buddy-md .hljs-function .hljs-title { color: #e0c37a; }
+    .buddy-md .hljs-params, .buddy-md .hljs-variable, .buddy-md .hljs-template-variable { color: #c9c3b8; }
+    .buddy-md .hljs-type, .buddy-md .hljs-class .hljs-title { color: #9ec3e6; }
+    .buddy-md .hljs-meta, .buddy-md .hljs-doctag { color: #b8ae98; }
     .study-graph svg { display: block; max-width: 100%; height: auto; }
     .study-graph figcaption { color: #6b6458; font-size: 0.9rem; margin-top: 0.4rem; }
     .kicker { font-family: "Source Sans 3", sans-serif; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; color: #8a5a00; margin: 2rem 0 0.5rem; }
@@ -78,12 +137,16 @@ export function studyGuideHtml(opts: {
     body.pdf .buddy-md p,
     body.pdf .buddy-md li,
     body.pdf .study-graph,
+    body.pdf .buddy-code,
     body.pdf .buddy-md table { break-inside: avoid; page-break-inside: avoid; }
+    body.pdf .buddy-code,
+    body.pdf .buddy-code-scroll { overflow: visible !important; max-width: 100%; }
     @media print {
       .toolbar { display: none !important; }
       html, body { background: white; }
       .sheet { max-width: none; padding: 0; }
-      .buddy-scroll { overflow: visible !important; max-width: 100%; }
+      .buddy-scroll, .buddy-code, .buddy-code-scroll { overflow: visible !important; max-width: 100%; }
+      .buddy-code { break-inside: avoid; page-break-inside: avoid; }
       .buddy-md table {
         display: table;
         width: 100% !important;
@@ -191,6 +254,15 @@ export async function captureStudyPrintPdf(opts: {
     onclone: (_, el) => {
       el.style.letterSpacing = "normal";
       el.style.wordSpacing = "0.03em";
+      el.querySelectorAll<HTMLElement>(".buddy-code, .buddy-code-scroll, .buddy-scroll").forEach((node) => {
+        node.style.overflow = "visible";
+        node.style.maxWidth = "100%";
+      });
+      el.querySelectorAll<HTMLElement>(".buddy-code-pre, .buddy-md pre").forEach((node) => {
+        node.style.whiteSpace = "pre-wrap";
+        node.style.overflowWrap = "anywhere";
+        node.style.wordBreak = "break-word";
+      });
     },
     ...({ letterRendering: true } as object),
   });
