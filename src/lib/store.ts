@@ -10,7 +10,7 @@ import { assistantProvider } from "./llm";
 import { ensureGuideChat } from "./guide-chat";
 import { isAdminEmail } from "./admin";
 import { applyPlannerSeed, isOwnerPlannerEmail, readOwnerUpload } from "./planner-seed";
-import { persistList, persistRead, persistReadJson, persistWrite, persistWriteJson, onVercel, usesCloud } from "./persist";
+import { persistDelete, persistList, persistRead, persistReadJson, persistWrite, persistWriteJson, onVercel, usesCloud } from "./persist";
 import type { AppState, AppUser, ClientState, PublicSettings } from "./types";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -331,6 +331,15 @@ export async function readUpload(userId: string, storedName: string) {
   }
   const dest = path.join(uploadDir(userId), name);
   return fs.readFile(dest);
+}
+
+export async function deleteUpload(userId: string, storedName: string) {
+  const name = path.basename(storedName || "");
+  if (!name || name === "." || name === "..") return;
+  if (usesCloud() || onVercel()) {
+    await persistDelete(`users/${userId}/uploads/${name}`);
+  }
+  await fs.unlink(path.join(uploadDir(userId), name)).catch(() => undefined);
 }
 
 export function publicUploadPath(storedName: string) {

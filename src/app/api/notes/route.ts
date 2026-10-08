@@ -2,7 +2,6 @@ import { fail, mutate } from "@/lib/api";
 import { extractTextFromBuffer } from "@/lib/extract-text";
 import { defaultAlerts, nid, nowIso } from "@/lib/ids";
 import { generateStudySummary } from "@/lib/note-summary";
-import { ensureCourseDriveTree, pushNoteUploadsToDrive } from "@/lib/google-drive";
 import { readUpload, saveUpload } from "@/lib/store";
 import type { Attachment, CourseNote, NoteKind } from "@/lib/types";
 
@@ -48,23 +47,13 @@ export async function POST(req: Request) {
         if (form.has("transcript")) note.transcript = String(form.get("transcript") || "");
         if (form.has("guideDirections")) note.guideDirections = String(form.get("guideDirections") || "");
         const audio = form.get("audio");
-        let audioBuf: Buffer | undefined;
         if (audio instanceof File && audio.size > 0) {
           const saved = await saveUpload(userId, audio, audio.name || "voice.webm");
           note.audioPath = saved.filename;
+          note.audioSavedAt = nowIso();
           note.audioDriveUrl = undefined;
-          audioBuf = saved.buf;
         }
         note.updatedAt = nowIso();
-        if (audioBuf && note.audioPath) {
-          try {
-            const course = state.courses.find((c) => c.id === note.courseId);
-            await ensureCourseDriveTree(state, course);
-            await pushNoteUploadsToDrive(state, userId, note, course, { audio: audioBuf });
-          } catch {
-            /* local note still saved */
-          }
-        }
         return { note };
       });
     }
@@ -77,12 +66,11 @@ export async function POST(req: Request) {
         note.guideDirections = guideDirections;
         if (form.has("transcript")) note.transcript = String(form.get("transcript") || "");
         const audio = form.get("audio");
-        let audioBuf: Buffer | undefined;
         if (audio instanceof File && audio.size > 0) {
           const saved = await saveUpload(userId, audio, audio.name || "voice.webm");
           note.audioPath = saved.filename;
+          note.audioSavedAt = nowIso();
           note.audioDriveUrl = undefined;
-          audioBuf = saved.buf;
         }
         const files = form.getAll("files").filter((f): f is File => f instanceof File);
         const newAttachments: Attachment[] = [];
@@ -126,14 +114,6 @@ export async function POST(req: Request) {
           note.studyPdfPath = undefined;
         }
         note.updatedAt = nowIso();
-        if (audioBuf && note.audioPath) {
-          try {
-            await ensureCourseDriveTree(state, course);
-            await pushNoteUploadsToDrive(state, userId, note, course, { audio: audioBuf });
-          } catch {
-            /* guide still saved */
-          }
-        }
         return { note };
       });
     }
@@ -152,7 +132,6 @@ export async function POST(req: Request) {
     return await mutate(async (state, userId) => {
       const attachments: Attachment[] = [];
       const fileBufs: Record<string, Buffer> = {};
-      let audioBuf: Buffer | undefined;
       for (const file of files) {
         const saved = await saveUpload(userId, file, file.name);
         attachments.push({
@@ -166,10 +145,11 @@ export async function POST(req: Request) {
         if (saved.buf) fileBufs[saved.filename] = saved.buf;
       }
       let audioPath: string | null = null;
+      let audioSavedAt: string | undefined;
       if (audio instanceof File && audio.size > 0) {
         const saved = await saveUpload(userId, audio, audio.name || "voice.webm");
         audioPath = saved.filename;
-        audioBuf = saved.buf;
+        audioSavedAt = nowIso();
       }
       const course = state.courses.find((c) => c.id === courseId);
       const extraMaterials = await textFromUploads(
@@ -210,21 +190,13 @@ export async function POST(req: Request) {
         summaryReadyAt: study.trim() ? nowIso() : undefined,
         guideDirections: summary || undefined,
         audioPath,
+        audioSavedAt,
         attachments,
         createdAt: nowIso(),
         updatedAt: nowIso(),
       };
       state.notes.push(note);
-      // Lecture file uploads stay on Askuala. Only voice can sync to Drive (course Voice folder).
-      // Study-guide PDFs wait 12 hours — never push on create.
-      if (audioPath) {
-        try {
-          await ensureCourseDriveTree(state, course);
-          await pushNoteUploadsToDrive(state, userId, note, course, { audio: audioBuf });
-        } catch {
-          /* local note still saved */
-        }
-      }
+      // Voice stays on Askuala for 7 days (never Drive). Study PDFs wait 12h before Drive.
       return { note };
     });
   } catch (err) {

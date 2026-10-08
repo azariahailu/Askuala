@@ -8,26 +8,23 @@ export async function POST() {
   try {
     return await mutate(async (state, userId) => {
       const result = await backfillDrive(state, userId);
-      if (!result.ok && result.reason === "scope") {
+      if (!result.ok) {
         return {
           ok: false,
-          uploaded: result.uploaded || 0,
-          message: "Google still has Calendar only. In Settings, click Connect Google again and allow Drive.",
+          uploaded: 0,
+          message:
+            result.reason === "scope"
+              ? "Google still has Calendar only. In Settings, click Connect Google again and allow Drive."
+              : "Could not update Drive folders.",
         };
-      }
-      if (!result.ok && result.reason === "auth") {
-        return { ok: false, uploaded: 0, message: "Connect Google in Settings first." };
-      }
-      if (!result.ok) {
-        return { ok: false, uploaded: result.uploaded || 0, message: "Could not copy files to Drive." };
       }
       return {
         ok: true,
         uploaded: result.uploaded,
-        message:
-          result.uploaded > 0
-            ? `Copied ${result.uploaded} note(s) into Drive → Askuala.`
-            : "Drive folders are ready. Nothing new to copy.",
+        changed: result.changed,
+        message: result.changed
+          ? "Drive course folders flattened (PDFs in the course folder). Old Voice folders trashed. Expired local voice removed."
+          : "Drive layout is already flat. Voice stays on Askuala for 7 days only.",
       };
     });
   } catch (err) {

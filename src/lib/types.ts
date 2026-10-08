@@ -98,6 +98,8 @@ export type CourseNote = {
   /** Last study guide before a rebuild, so Keep-and-add mistakes can be undone. */
   summaryPrevious?: string;
   audioPath: string | null;
+  /** When the current voice file was saved; deleted from Askuala after 7 days (never kept on Drive). */
+  audioSavedAt?: string;
   audioDriveUrl?: string;
   studyPdfDriveUrl?: string;
   /** Stable Drive file id so a later rebuild replaces the same PDF instead of creating a duplicate. */

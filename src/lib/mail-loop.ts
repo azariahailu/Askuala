@@ -38,7 +38,7 @@ export async function tickAllMail() {
         let driveChanged = false;
         try {
           const copied = await backfillDrive(state, id, { limit: 4 });
-          if (copied.ok && copied.uploaded > 0) driveChanged = true;
+          if (copied.ok && copied.changed) driveChanged = true;
         } catch {
           /* continue mail */
         }

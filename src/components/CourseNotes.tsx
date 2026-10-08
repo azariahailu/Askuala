@@ -829,7 +829,7 @@ function StudyWindow({
               <div className="text-[15px] leading-relaxed">No guide yet: add a transcript and save, then rebuild.</div>
             )}
             <p className="mb-3 text-xs text-muted">
-              Voice recordings can sync to Drive under Askuala → course → Voice recordings. Study-guide PDFs wait 12 hours after the last rebuild. Lecture file uploads stay in Askuala, not Drive.
+              Voice stays on Askuala for 7 days, then is deleted (never copied to Drive). Study-guide PDFs go to Drive under Askuala → year → term → course after 12 hours. Lecture file uploads stay in Askuala only.
             </p>
             {note.studyPdfDriveUrl && (
               <a className="mt-2 inline-block text-xs text-gold-2 underline" href={note.studyPdfDriveUrl} target="_blank" rel="noreferrer">
@@ -871,8 +871,8 @@ function StudyWindow({
                 ? "Recording into this note (up to 2 hours). Stop, then Save transcript & voice, or Rebuild with your directions."
                 : "Add another lecture segment here. Save stores transcript/voice; Rebuild uses them with your instructions (still full lecture notes)."}
             </p>
-            {(localAudioUrl || note.audioDriveUrl || note.audioPath) && (
-              <audio className="mt-3 w-full" controls src={localAudioUrl || note.audioDriveUrl || `/api/files/${note.audioPath}`} />
+            {(localAudioUrl || note.audioPath) && (
+              <audio className="mt-3 w-full" controls src={localAudioUrl || `/api/files/${note.audioPath}`} />
             )}
             <button
               type="button"
@@ -893,11 +893,6 @@ function StudyWindow({
             >
               {busy ? "Saving…" : "Save transcript & voice"}
             </button>
-            {note.audioDriveUrl && (
-              <a className="mt-2 block text-xs text-gold-2 underline" href={note.audioDriveUrl} target="_blank" rel="noreferrer">
-                Voice on Drive
-              </a>
-            )}
             {note.attachments.map((a) => (
               <span key={a.id} className="mr-2 inline-flex flex-wrap gap-x-2 text-xs">
                 <a className="text-gold-2 underline" href={a.driveUrl || `/api/files/${a.path}`} target={a.driveUrl ? "_blank" : undefined} rel={a.driveUrl ? "noreferrer" : undefined}>
