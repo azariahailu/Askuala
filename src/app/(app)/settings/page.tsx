@@ -101,7 +101,7 @@ export default function SettingsPage() {
       <section className="rounded-xl border border-line bg-surface p-4 space-y-3">
         <h2 className="font-medium">Notifications</h2>
         <p className="text-sm text-muted">
-          Askuala sends <strong>one</strong> daily email (everything tomorrow, listed together) and one Sunday week ahead email: never a separate mail per event. Mail goes to <strong>{data?.me?.email || "the address you logged in with"}</strong>. Calendar pings are set on each event.
+          Askuala sends <strong>one</strong> daily email (everything tomorrow, listed together) around your chosen time in <strong>New York</strong> time, and one Sunday week-ahead email: never a separate mail per event. On free Vercel the nightly send is once a day near 10–11 PM ET. Mail goes to <strong>{data?.me?.email || "the address you logged in with"}</strong>. Calendar pings are set on each event.
         </p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} /> Send email

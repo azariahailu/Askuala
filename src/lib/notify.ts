@@ -365,7 +365,9 @@ export async function sendDigests(state: AppState, now = new Date()) {
           () => briefBody(state, now, now, `What’s coming up tomorrow`, tomorrowYmd),
         );
       }
-    } else {
+    } else if (clock.hour < 12) {
+      // Morning-only catch-up if last night’s cron never ran. Do not send this
+      // midday/afternoon — that used to look like a late “daily” brief.
       const yest = addCalendarYmd(todayYmd, -1);
       const items = digestEventsOnDay(state, todayYmd).filter((e) => new Date(e.start) >= now);
       if (items.length) {
