@@ -1,9 +1,8 @@
 import nodemailer from "nodemailer";
 import { addDays, addMonths, endOfDay, startOfDay } from "date-fns";
-import { alertFireAt, expandEvents, inferCourseId, isMajorAssessment, isRoutineNoise } from "./calendar-utils";
+import { alertFireAt, expandEvents, inferCourseId, isMajorAssessment, isRoutineNoise, stripCourseCode } from "./calendar-utils";
 import { resolveSmtp } from "./mail-account";
 import { TYPE_LABELS, type AppState, type CourseEvent, type CourseNote } from "./types";
-import { geminiApiKey, llmChat } from "./llm";
 import { APP_NAME } from "./brand";
 import { persistCreateExclusive, persistDelete, persistRead } from "./persist";
 
@@ -136,7 +135,14 @@ export async function sendAdminNewUserEmail(opts: {
 }
 
 function fmtWhen(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  });
 }
 
 function courseLabel(state: AppState, event: CourseEvent) {
@@ -173,7 +179,9 @@ function digestEvents(state: AppState, start: Date, end: Date) {
 function lineFor(state: AppState, e: CourseEvent) {
   const type = TYPE_LABELS[e.type] || e.type;
   const loc = e.location ? ` @ ${e.location}` : "";
-  return `  ${fmtWhen(e.start)} · ${courseLabel(state, e)} · ${e.title} (${type})${loc}`;
+  const code = courseLabel(state, e);
+  const title = code === "Non-course" ? e.title.trim() : stripCourseCode(e.title, code) || e.title.trim();
+  return `  ${fmtWhen(e.start)} · ${code} · ${title} (${type})${loc}`;
 }
 
 function digestEventsOnDay(state: AppState, ymd: string) {
@@ -182,29 +190,10 @@ function digestEventsOnDay(state: AppState, ymd: string) {
   return digestEvents(state, from, to).filter((e) => eventNyYmd(e.start) === ymd);
 }
 
-async function briefBody(state: AppState, start: Date, end: Date, heading: string, ymdForDay?: string) {
+/** Plain list only — no AI rewrite (that duplicated the schedule and invented a second “complete list”). */
+function briefBody(state: AppState, start: Date, end: Date, heading: string, ymdForDay?: string) {
   const items = ymdForDay ? digestEventsOnDay(state, ymdForDay) : digestEvents(state, start, end);
-  const skeleton = formatWindowItems(heading, items, state);
-  if (!geminiApiKey(state.settings) || !items.length) return skeleton;
-  try {
-    const { text } = await llmChat(
-      [
-        {
-          role: "system",
-          content:
-            "Write a short plain-text college briefing email. Use only the listed facts. No invented times or work. Keep course codes. 2-4 short paragraphs, then repeat the bullet list.",
-        },
-        { role: "user", content: skeleton },
-      ],
-      state.settings,
-      false,
-      false,
-    );
-    const clean = (text || "").trim();
-    return clean ? `${clean}\n\n${skeleton}` : skeleton;
-  } catch {
-    return skeleton;
-  }
+  return formatWindowItems(heading, items, state);
 }
 
 function formatWindowItems(heading: string, items: CourseEvent[], state: AppState) {
@@ -352,32 +341,24 @@ export async function sendDigests(state: AppState, now = new Date()) {
   const dailyM = Math.min(59, Math.max(0, n.digestDailyMinute ?? 0));
   const pastDaily = clock.hour > dailyH || (clock.hour === dailyH && clock.minute >= dailyM);
 
-  if (n.digestDaily !== false) {
-    if (pastDaily) {
-      const tomorrowYmd = addCalendarYmd(todayYmd, 1);
-      const items = digestEventsOnDay(state, tomorrowYmd);
-      if (items.length) {
-        const tomorrow = new Date(items[0].start);
-        await sendOnce(
-          state,
-          [`digest:day:${tomorrowYmd}`, `digest:daily:${todayYmd}`],
-          `Tomorrow · ${tomorrow.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", timeZone: "America/New_York" })}`,
-          () => briefBody(state, now, now, `What’s coming up tomorrow`, tomorrowYmd),
-        );
-      }
-    } else if (clock.hour < 12) {
-      // Morning-only catch-up if last night’s cron never ran. Do not send this
-      // midday/afternoon — that used to look like a late “daily” brief.
-      const yest = addCalendarYmd(todayYmd, -1);
-      const items = digestEventsOnDay(state, todayYmd).filter((e) => new Date(e.start) >= now);
-      if (items.length) {
-        await sendOnce(
-          state,
-          [`digest:day:${todayYmd}`, `digest:daily:${yest}`],
-          `Today · ${now.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", timeZone: "America/New_York" })}`,
-          () => briefBody(state, now, now, `Catch-up: the scheduled tomorrow-brief was missed: what’s left today`, todayYmd),
-        );
-      }
+  // One nightly email: tomorrow’s dated work + campus events (office hours / lectures / psets omitted).
+  // No midday “catch-up” — that was a broken fallback when the cron ran at noon UTC.
+  if (n.digestDaily !== false && pastDaily) {
+    const tomorrowYmd = addCalendarYmd(todayYmd, 1);
+    const items = digestEventsOnDay(state, tomorrowYmd);
+    if (items.length) {
+      const dayLabel = new Date(`${tomorrowYmd}T12:00:00-04:00`).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        timeZone: "America/New_York",
+      });
+      await sendOnce(
+        state,
+        [`digest:day:${tomorrowYmd}`, `digest:daily:${todayYmd}`],
+        `Tomorrow · ${dayLabel}`,
+        () => briefBody(state, now, now, `Tomorrow · ${dayLabel}`, tomorrowYmd),
+      );
     }
   }
 

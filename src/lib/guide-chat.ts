@@ -137,7 +137,7 @@ A pad of free text plus checkboxes. It autosaves in the browser and to your acco
 
 Askuala sends **at most**:
 
-- **One daily email** listing **tomorrow’s** items together (New York time; default 10:00 PM). On the hosted site the send runs once a night near that window. If last night’s send was missed, a **morning** catch-up can list what’s left **today** (not midday).
+- **One daily email** at night (New York; default 10:00 PM): a plain list of **tomorrow’s** calendar items (office hours, lectures, and weekly psets omitted). No AI rewrite, no “catch-up” midday mail.
 - **One Sunday ~11:00 AM** (New York) **week-ahead** email.
 
 Rules that are already in the product:
