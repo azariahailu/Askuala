@@ -40,6 +40,34 @@ async function textFromNoteAttachments(userId: string, note: CourseNote) {
 export async function POST(req: Request) {
   try {
     const form = await req.formData();
+    const updateId = String(form.get("updateId") || "");
+    if (updateId) {
+      return await mutate(async (state, userId) => {
+        const note = state.notes.find((n) => n.id === updateId);
+        if (!note) throw new Error("Note not found");
+        if (form.has("transcript")) note.transcript = String(form.get("transcript") || "");
+        if (form.has("guideDirections")) note.guideDirections = String(form.get("guideDirections") || "");
+        const audio = form.get("audio");
+        let audioBuf: Buffer | undefined;
+        if (audio instanceof File && audio.size > 0) {
+          const saved = await saveUpload(userId, audio, audio.name || "voice.webm");
+          note.audioPath = saved.filename;
+          note.audioDriveUrl = undefined;
+          audioBuf = saved.buf;
+        }
+        note.updatedAt = nowIso();
+        if (audioBuf && note.audioPath) {
+          try {
+            const course = state.courses.find((c) => c.id === note.courseId);
+            await ensureCourseDriveTree(state, course);
+            await pushNoteUploadsToDrive(state, userId, note, course, { audio: audioBuf });
+          } catch {
+            /* local note still saved */
+          }
+        }
+        return { note };
+      });
+    }
     const regenerateId = String(form.get("regenerateId") || "");
     if (regenerateId) {
       return await mutate(async (state, userId) => {
@@ -47,6 +75,15 @@ export async function POST(req: Request) {
         if (!note) throw new Error("Note not found");
         const guideDirections = String(form.get("guideDirections") || "");
         note.guideDirections = guideDirections;
+        if (form.has("transcript")) note.transcript = String(form.get("transcript") || "");
+        const audio = form.get("audio");
+        let audioBuf: Buffer | undefined;
+        if (audio instanceof File && audio.size > 0) {
+          const saved = await saveUpload(userId, audio, audio.name || "voice.webm");
+          note.audioPath = saved.filename;
+          note.audioDriveUrl = undefined;
+          audioBuf = saved.buf;
+        }
         const files = form.getAll("files").filter((f): f is File => f instanceof File);
         const newAttachments: Attachment[] = [];
         const fileBufs: Record<string, Buffer> = {};
@@ -89,6 +126,14 @@ export async function POST(req: Request) {
           note.studyPdfPath = undefined;
         }
         note.updatedAt = nowIso();
+        if (audioBuf && note.audioPath) {
+          try {
+            await ensureCourseDriveTree(state, course);
+            await pushNoteUploadsToDrive(state, userId, note, course, { audio: audioBuf });
+          } catch {
+            /* guide still saved */
+          }
+        }
         return { note };
       });
     }

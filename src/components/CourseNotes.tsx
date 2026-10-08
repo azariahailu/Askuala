@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Printer, Share2 } from "lucide-react";
 import { NOTE_KINDS, type AlertRule, type CourseNote, type NoteKind } from "@/lib/types";
 import { useBuddy } from "./BuddyProvider";
@@ -360,11 +360,23 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           note={openNote}
           courseLabel={courseLabel}
           onClose={() => setOpenNote(null)}
-          onRegenerate={async (guideDirections, rebuildFiles) => {
+          onRegenerate={async (guideDirections, rebuildFiles, transcript, audio) => {
             const form = new FormData();
             form.set("regenerateId", openNote.id);
             form.set("guideDirections", guideDirections);
+            form.set("transcript", transcript);
             for (const f of rebuildFiles) form.append("files", f);
+            if (audio) form.append("audio", new File([audio], "voice.webm", { type: "audio/webm" }));
+            const json = await postForm("/api/notes", form);
+            const next = json.notes?.find((n) => n.id === openNote.id);
+            if (next) setOpenNote(next);
+          }}
+          onSaveVoice={async (transcript, audio, guideDirections) => {
+            const form = new FormData();
+            form.set("updateId", openNote.id);
+            form.set("transcript", transcript);
+            form.set("guideDirections", guideDirections);
+            if (audio) form.append("audio", new File([audio], "voice.webm", { type: "audio/webm" }));
             const json = await postForm("/api/notes", form);
             const next = json.notes?.find((n) => n.id === openNote.id);
             if (next) setOpenNote(next);
@@ -425,13 +437,15 @@ function StudyWindow({
   courseLabel,
   onClose,
   onRegenerate,
+  onSaveVoice,
   onSaveSummary,
   onRestore,
 }: {
   note: CourseNote;
   courseLabel: string;
   onClose: () => void;
-  onRegenerate: (guideDirections: string, files: File[]) => Promise<void>;
+  onRegenerate: (guideDirections: string, files: File[], transcript: string, audio: Blob | null) => Promise<void>;
+  onSaveVoice: (transcript: string, audio: Blob | null, guideDirections: string) => Promise<void>;
   onSaveSummary: (summary: string) => Promise<void>;
   onRestore?: () => Promise<void>;
 }) {
@@ -441,7 +455,17 @@ function StudyWindow({
   const [rebuildFiles, setRebuildFiles] = useState<File[]>([]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.summary || "");
+  const [transcriptDraft, setTranscriptDraft] = useState(note.transcript || "");
+  const [recording, setRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const recRef = useRef<SpeechRecognition | null>(null);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
+  const stopWanted = useRef(false);
+  const deadline = useRef(0);
+  const finals = useRef(note.transcript || "");
+  const restarting = useRef(false);
   const { postForm } = useBuddy();
   const capturedSummary = useRef("");
   const dateLabel = note.catalogDate || note.createdAt.slice(0, 10);
@@ -454,6 +478,124 @@ function StudyWindow({
   useEffect(() => {
     setGuideDirections(note.guideDirections || "");
   }, [note.id, note.guideDirections]);
+
+  useEffect(() => {
+    if (recording) return;
+    setTranscriptDraft(note.transcript || "");
+    finals.current = note.transcript || "";
+    setAudioBlob(null);
+  }, [note.id, note.transcript, recording]);
+
+  const localAudioUrl = useMemo(() => (audioBlob ? URL.createObjectURL(audioBlob) : ""), [audioBlob]);
+
+  useEffect(() => {
+    return () => {
+      if (localAudioUrl) URL.revokeObjectURL(localAudioUrl);
+    };
+  }, [localAudioUrl]);
+
+  useEffect(() => {
+    return () => {
+      stopWanted.current = true;
+      try {
+        recRef.current?.stop();
+      } catch {
+        /* already stopped */
+      }
+      try {
+        mediaRef.current?.stop();
+      } catch {
+        /* already stopped */
+      }
+    };
+  }, []);
+
+  function startRecognition() {
+    if (stopWanted.current || Date.now() > deadline.current) return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    try {
+      recRef.current?.stop();
+    } catch {
+      /* already stopped */
+    }
+    const rec = new SR() as SpeechRecognition & {
+      maxAlternatives: number;
+      onend: (() => void) | null;
+    };
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    rec.onresult = (ev: SpeechRecognitionEvent) => {
+      let interim = "";
+      for (let i = 0; i < ev.results.length; i++) {
+        const row = ev.results[i] as unknown as { isFinal: boolean; 0: { transcript: string } };
+        const chunk = row[0].transcript;
+        if (row.isFinal) {
+          if (!finals.current.includes(chunk)) finals.current = `${finals.current} ${chunk}`.trim();
+        } else interim += `${chunk} `;
+      }
+      setTranscriptDraft(`${finals.current} ${interim}`.trim());
+    };
+    rec.onend = () => {
+      recRef.current = null;
+      if (stopWanted.current || Date.now() > deadline.current) return;
+      if (restarting.current) return;
+      restarting.current = true;
+      setTimeout(() => {
+        restarting.current = false;
+        startRecognition();
+      }, 200);
+    };
+    recRef.current = rec;
+    try {
+      rec.start();
+    } catch {
+      setTimeout(startRecognition, 400);
+    }
+  }
+
+  function startVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      setErr("Live transcription needs Chrome or Edge.");
+      return;
+    }
+    setErr("");
+    stopWanted.current = false;
+    deadline.current = Date.now() + 2 * 60 * 60 * 1000;
+    finals.current = transcriptDraft;
+    startRecognition();
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      const mr = new MediaRecorder(stream);
+      chunks.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size) chunks.current.push(e.data);
+      };
+      mr.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setAudioBlob(new Blob(chunks.current, { type: "audio/webm" }));
+      };
+      mr.start(5000);
+      mediaRef.current = mr;
+    });
+    setRecording(true);
+  }
+
+  function stopVoice() {
+    stopWanted.current = true;
+    try {
+      recRef.current?.stop();
+    } catch {
+      /* already stopped */
+    }
+    try {
+      mediaRef.current?.stop();
+    } catch {
+      /* already stopped */
+    }
+    setRecording(false);
+  }
 
   useEffect(() => {
     if (!note.summary || capturedSummary.current === note.summary) return;
@@ -578,13 +720,14 @@ function StudyWindow({
             </button>
             <button
               className="rounded-lg px-3 py-1 text-sm text-gold-2"
-              disabled={busy || editing}
+              disabled={busy || editing || recording}
               onClick={async () => {
                 setBusy(true);
                 setErr("");
                 try {
-                  await onRegenerate(guideDirections, rebuildFiles);
+                  await onRegenerate(guideDirections, rebuildFiles, transcriptDraft, audioBlob);
                   setRebuildFiles([]);
+                  setAudioBlob(null);
                 } catch (e) {
                   setErr(e instanceof Error ? e.message : "Could not rebuild the study guide");
                 } finally {
@@ -701,11 +844,55 @@ function StudyWindow({
             )}
           </section>
           <section className="md:col-span-2 border-t border-line pt-4 md:border-l md:border-t-0 md:pl-6 md:pt-0">
-            <h3 className="mb-2 text-sm font-medium text-muted">Transcript</h3>
-            <p className="whitespace-pre-wrap text-sm text-muted">{note.transcript || "No transcript."}</p>
-            {(note.audioDriveUrl || note.audioPath) && (
-              <audio className="mt-3 w-full" controls src={note.audioDriveUrl || `/api/files/${note.audioPath}`} />
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-medium text-muted">Transcript</h3>
+              {!recording ? (
+                <button type="button" className="text-sm text-gold-2 disabled:opacity-40" disabled={busy || editing} onClick={startVoice}>
+                  Record + transcribe
+                </button>
+              ) : (
+                <button type="button" className="text-sm text-red-400" onClick={stopVoice}>
+                  Stop
+                </button>
+              )}
+            </div>
+            <textarea
+              className="min-h-40 w-full bg-input p-2 text-sm text-ink"
+              value={transcriptDraft}
+              onChange={(e) => {
+                setTranscriptDraft(e.target.value);
+                finals.current = e.target.value;
+              }}
+              disabled={busy}
+              placeholder="Live transcript appears here. Record more on this note, edit freely, then Save or Rebuild."
+            />
+            <p className="mt-2 text-xs text-muted">
+              {recording
+                ? "Recording into this note (up to 2 hours). Stop, then Save transcript & voice, or Rebuild with your directions."
+                : "Add another lecture segment here. Save stores transcript/voice; Rebuild uses them with your instructions (still full lecture notes)."}
+            </p>
+            {(localAudioUrl || note.audioDriveUrl || note.audioPath) && (
+              <audio className="mt-3 w-full" controls src={localAudioUrl || note.audioDriveUrl || `/api/files/${note.audioPath}`} />
             )}
+            <button
+              type="button"
+              className="mt-3 rounded-lg border border-gold/40 px-3 py-2 text-sm text-gold-2 disabled:opacity-40"
+              disabled={busy || recording || editing}
+              onClick={async () => {
+                setBusy(true);
+                setErr("");
+                try {
+                  await onSaveVoice(transcriptDraft, audioBlob, guideDirections);
+                  setAudioBlob(null);
+                } catch (e) {
+                  setErr(e instanceof Error ? e.message : "Could not save transcript / voice");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Saving…" : "Save transcript & voice"}
+            </button>
             {note.audioDriveUrl && (
               <a className="mt-2 block text-xs text-gold-2 underline" href={note.audioDriveUrl} target="_blank" rel="noreferrer">
                 Voice on Drive
