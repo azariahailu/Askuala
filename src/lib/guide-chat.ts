@@ -107,7 +107,7 @@ When connected:
 - Edits here can update Google; Google events can appear here.
 - Recurring office hours from an imported school calendar stay **one weekly series per person/slot**. Monday and Saturday for the same tutor are two series on purpose.
 - You can still keep everything only inside ${APP_NAME} if you never connect Google.
-- Drive (same Google account): after you **save or rebuild a study guide**, **My Drive → Askuala** appears (not before). Inside: **year → term → course → Files** (the print-style PDF, 12 hours after the last rebuild) plus **Voice recordings**. Uploads stay in Askuala, not Drive, so they do not use your Drive quota. Spring 2027 and new courses get new folders.
+- Drive (same Google account): after a study guide has sat **12 hours** without a rebuild, the print-style PDF goes to **My Drive → Askuala → year → term → course** (directly in the course folder — no Files or Voice subfolders). Voice recordings stay on ${APP_NAME} for **7 days**, then are deleted; they are never copied to Drive. Lecture uploads stay on ${APP_NAME} only. Spring 2027 and new courses get new folders.
 
 ---
 
@@ -123,7 +123,7 @@ On a note you can:
 - For kind **reminder**: a remind-at time plus email/popup lead times.
 - Sort saved notes by date or kind. Open one to reread, regenerate the summary, or delete it.
 
-Uploaded lecture files stay on this ${APP_NAME} account (not copied to Drive). When Drive is allowed, the print-style study-guide PDF goes to **Askuala → year → term → course → Files** (12 hours after the last rebuild), and recordings go to **Voice recordings** in that course. The same recording is not copied twice. One Askuala folder for everyone.
+Uploaded lecture files stay on this ${APP_NAME} account (not copied to Drive). When Drive is allowed, the print-style study-guide PDF goes to **Askuala → year → term → course** (12 hours after the last rebuild). Voice stays on the site for 7 days and is never uploaded to Drive. One Askuala folder for everyone.
 
 ---
 

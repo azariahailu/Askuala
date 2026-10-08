@@ -12,7 +12,7 @@ export async function POST() {
       let driveChanged = false;
       try {
         const copied = await backfillDrive(state, user.id, { limit: 5 });
-        if (copied.ok && copied.uploaded > 0) driveChanged = true;
+        if (copied.ok && copied.changed) driveChanged = true;
       } catch {
         /* next tick */
       }

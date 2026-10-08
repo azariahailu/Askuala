@@ -156,7 +156,7 @@ export default function SettingsPage() {
         <h2 className="font-medium">Google Calendar and Drive</h2>
         <p className="text-sm text-muted">
           {data?.settings.googleConnected
-            ? `Google account: ${data.settings.googleEmail}. Calendar syncs here. Drive is Askuala → year → term → course → Files and Voice recordings. Uploads stay in Askuala, not Drive.`
+            ? `Google account: ${data.settings.googleEmail}. Calendar syncs here. Drive is Askuala → year → term → course (study PDFs after 12 hours). Voice stays on Askuala for 7 days only. Lecture uploads stay in Askuala, not Drive.`
             : data?.settings.appGoogleReady
               ? "Connect the Google account that can see your class calendar (college if it works, or personal after you subscribe the college calendar). Do not use a dedicated app mailbox."
               : "Google sign in isn’t available right now. You can still use the calendar in this app."}
@@ -168,7 +168,7 @@ export default function SettingsPage() {
         )}
         {data?.settings.driveReady && (
           <p className="text-sm text-gold-2">
-            Study guides and voice notes go to Drive under <strong>Askuala</strong> → year → term → course. Lecture files stay in Askuala.
+            Study-guide PDFs go to Drive under <strong>Askuala</strong> → year → term → course (after 12 hours). Voice stays on Askuala for 7 days and is never uploaded. Lecture files stay in Askuala.
           </p>
         )}
         {!data?.settings.googleConnected && (
@@ -195,13 +195,13 @@ export default function SettingsPage() {
                     setMsg(extra?.message || json.error || "Drive update finished.");
                     await refresh();
                   } catch (e) {
-                    setMsg(e instanceof Error ? e.message : "Drive copy failed");
+                    setMsg(e instanceof Error ? e.message : "Drive update failed");
                   } finally {
                     setDriveBusy(false);
                   }
                 }}
               >
-                {driveBusy ? "Copying to Drive…" : "Copy existing notes to Drive"}
+                {driveBusy ? "Updating Drive…" : "Flatten Drive folders"}
               </button>
             )}
           </div>

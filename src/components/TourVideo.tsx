@@ -388,7 +388,7 @@ function Screen({ kind }: { kind: Kind }) {
             Connect Google (Calendar + Drive)
           </div>
         </Card>
-        <div className="text-[10px] text-[#6b6458]">Drive: Askuala → Files / Voice</div>
+        <div className="text-[10px] text-[#6b6458]">Drive: Askuala → course PDFs</div>
       </div>
     );
   }

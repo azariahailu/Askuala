@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { google } from "googleapis";
 import { makeOAuthClient } from "./google";
-import { readUpload } from "./store";
+import { deleteUpload, readUpload } from "./store";
 import type { AppState, Attachment, Course, CourseNote } from "./types";
 
 const FOLDER = "application/vnd.google-apps.folder";
@@ -10,7 +10,8 @@ const FILES = "Files";
 const OUTPUTS = "outputs";
 const VOICE = "Voice recordings";
 
-export type DriveKind = "uploads" | "outputs" | "voice";
+/** Study PDFs and any leftover uploads go straight in the course folder (no Files / Voice subfolders). */
+export type DriveKind = "uploads" | "outputs";
 
 export function isDriveDenied(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
@@ -199,14 +200,12 @@ function termName(course?: Pick<Course, "term"> | null) {
   return course?.term || "Fall";
 }
 
-/** Creates Askuala / year / term / this course / Files (study PDFs) and Voice recordings. */
+/** Creates Askuala / year / term / this course (study PDFs live directly in the course folder). */
 export async function ensureCourseDriveTree(state: AppState, course?: Course | null) {
   if (course) return syncCourseDriveFolder(state, course);
   const ready = await ensureAskualaDrive(state);
   if (!ready.ok || !state.settings.google.driveRootId) return ready;
-  const root = state.settings.google.driveRootId;
-  await courseBin(ready.drive, root, course, "outputs");
-  await courseBin(ready.drive, root, course, "voice");
+  await courseBin(ready.drive, state.settings.google.driveRootId, course, "outputs");
   return { ok: true as const };
 }
 
@@ -260,9 +259,7 @@ export async function syncCourseDriveFolder(state: AppState, course: Course, pre
         });
       }
     }
-    await childFolder(drive, VOICE, folderId);
-    const filesId = await childFolder(drive, FILES, folderId);
-    await flattenOutputsIntoFiles(drive, filesId);
+    await migrateCourseDriveLayout(drive, folderId);
     course.driveFolderId = folderId;
     course.driveFolderName = wantName;
     return { ok: true as const };
@@ -275,12 +272,12 @@ export async function syncCourseDriveFolder(state: AppState, course: Course, pre
   }
 }
 
-/** Askuala / year / term / course / Files (PDFs) or Voice recordings */
+/** Askuala / year / term / course — PDFs sit in the course folder itself. */
 async function courseBin(
   drive: ReturnType<typeof google.drive>,
   rootId: string,
   course: Course | null | undefined,
-  kind: DriveKind,
+  _kind: DriveKind,
 ) {
   const yearId = await childFolder(drive, yearName(course), rootId);
   const termId = await childFolder(drive, termName(course), yearId);
@@ -294,36 +291,57 @@ async function courseBin(
       course.driveFolderName = courseFolderName(course);
     }
   }
-  if (kind === "voice") return childFolder(drive, VOICE, courseId);
-  const filesId = await childFolder(drive, FILES, courseId);
-  await flattenOutputsIntoFiles(drive, filesId);
-  return filesId;
+  await migrateCourseDriveLayout(drive, courseId);
+  return courseId;
 }
 
-async function flattenOutputsIntoFiles(drive: ReturnType<typeof google.drive>, filesId: string) {
-  const outputs = await listNamedFolders(drive, OUTPUTS, filesId);
-  for (const folder of outputs) {
-    if (!folder.id) continue;
-    let pageToken: string | undefined;
-    do {
-      const found = await drive.files.list({
-        q: `'${folder.id}' in parents and trashed=false`,
-        fields: "nextPageToken, files(id)",
-        pageSize: 50,
-        pageToken,
-        spaces: "drive",
+async function moveChildrenUp(drive: ReturnType<typeof google.drive>, fromId: string, toId: string) {
+  let pageToken: string | undefined;
+  do {
+    const found = await drive.files.list({
+      q: `'${fromId}' in parents and trashed=false`,
+      fields: "nextPageToken, files(id)",
+      pageSize: 50,
+      pageToken,
+      spaces: "drive",
+    });
+    for (const kid of found.data.files || []) {
+      if (!kid.id) continue;
+      await drive.files.update({
+        fileId: kid.id,
+        addParents: toId,
+        removeParents: fromId,
+        fields: "id",
       });
-      for (const kid of found.data.files || []) {
-        if (!kid.id) continue;
-        await drive.files.update({
-          fileId: kid.id,
-          addParents: filesId,
-          removeParents: folder.id,
-          fields: "id",
-        });
-      }
-      pageToken = found.data.nextPageToken || undefined;
-    } while (pageToken);
+    }
+    pageToken = found.data.nextPageToken || undefined;
+  } while (pageToken);
+}
+
+/** Move Files/outputs PDFs into the course folder; trash Voice recordings and empty Files folders. */
+async function migrateCourseDriveLayout(drive: ReturnType<typeof google.drive>, courseId: string) {
+  const filesFolders = await listNamedFolders(drive, FILES, courseId);
+  for (const folder of filesFolders) {
+    if (!folder.id) continue;
+    const nested = await listNamedFolders(drive, OUTPUTS, folder.id);
+    for (const out of nested) {
+      if (!out.id) continue;
+      await moveChildrenUp(drive, out.id, courseId);
+      await drive.files.update({ fileId: out.id, requestBody: { trashed: true } });
+    }
+    await moveChildrenUp(drive, folder.id, courseId);
+    await drive.files.update({ fileId: folder.id, requestBody: { trashed: true } });
+  }
+  const looseOutputs = await listNamedFolders(drive, OUTPUTS, courseId);
+  for (const out of looseOutputs) {
+    if (!out.id) continue;
+    await moveChildrenUp(drive, out.id, courseId);
+    await drive.files.update({ fileId: out.id, requestBody: { trashed: true } });
+  }
+  const voiceFolders = await listNamedFolders(drive, VOICE, courseId);
+  for (const folder of voiceFolders) {
+    if (!folder.id) continue;
+    // Trash the whole Voice folder (recordings should not live on Drive).
     await drive.files.update({ fileId: folder.id, requestBody: { trashed: true } });
   }
 }
@@ -394,49 +412,87 @@ export async function pushBytesToDrive(opts: {
   return { ok: true as const, ...hit };
 }
 
-export function voiceDriveName(note: Pick<CourseNote, "title" | "catalogDate" | "createdAt">, storedName: string) {
-  const date = (note.catalogDate || note.createdAt || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
-  const ext = storedName.includes(".") ? storedName.slice(storedName.lastIndexOf(".")) : ".webm";
-  const stamp = storedName.replace(/[^A-Za-z0-9._-]/g, "").slice(0, 18);
-  return `${date} · ${note.title || "Voice"} · ${stamp}${ext}`;
-}
-
-export async function pushNoteUploadsToDrive(
-  state: AppState,
-  userId: string,
-  note: CourseNote,
-  course?: Course | null,
-  buffers?: { files?: Record<string, Buffer>; audio?: Buffer; studyPdf?: Buffer },
-) {
-  if (!state.settings.google.refreshToken && !state.settings.google.accessToken) {
-    return { ok: false as const, reason: "auth" as const };
-  }
-  try {
-    if (note.audioPath && !note.audioDriveUrl) {
-      const hit = await pushBytesToDrive({
-        state,
-        userId,
-        course,
-        kind: "voice",
-        storedName: note.audioPath,
-        displayName: voiceDriveName(note, note.audioPath),
-        mime: "audio/webm",
-        buf: buffers?.audio,
-      });
-      if (hit.ok) note.audioDriveUrl = hit.url;
-      else if (hit.reason !== "missing") return hit;
-    }
-    return { ok: true as const };
-  } catch (err) {
-    if (isDriveDenied(err)) {
-      state.settings.google.driveOk = false;
-      return { ok: false as const, reason: "scope" as const };
-    }
-    return { ok: false as const, reason: "error" as const, message: err instanceof Error ? err.message : "Drive upload failed" };
-  }
-}
-
 export const STUDY_PDF_DRIVE_DELAY_MS = 12 * 60 * 60 * 1000;
+/** Voice stays on Askuala only, then is deleted (never copied to Drive). */
+export const VOICE_LOCAL_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Voice is local-only. Kept for API compatibility; does not upload audio. */
+export async function pushNoteUploadsToDrive(
+  _state: AppState,
+  _userId: string,
+  note: CourseNote,
+  _course?: Course | null,
+  _buffers?: { files?: Record<string, Buffer>; audio?: Buffer; studyPdf?: Buffer },
+) {
+  if (note.audioDriveUrl) note.audioDriveUrl = undefined;
+  return { ok: true as const };
+}
+
+/** Delete voice files older than 7 days from Askuala storage. */
+export async function expireLocalVoice(state: AppState, userId: string) {
+  let changed = false;
+  const now = Date.now();
+  for (const note of state.notes) {
+    if (!note.audioPath) {
+      if (note.audioDriveUrl || note.audioSavedAt) {
+        note.audioDriveUrl = undefined;
+        note.audioSavedAt = undefined;
+        changed = true;
+      }
+      continue;
+    }
+    // Existing recordings without a stamp get a fresh 7-day window from first cleanup pass.
+    if (!note.audioSavedAt) {
+      note.audioSavedAt = new Date().toISOString();
+      if (note.audioDriveUrl) note.audioDriveUrl = undefined;
+      changed = true;
+      continue;
+    }
+    const saved = Date.parse(note.audioSavedAt);
+    if (!Number.isFinite(saved) || now - saved < VOICE_LOCAL_KEEP_MS) {
+      if (note.audioDriveUrl) {
+        note.audioDriveUrl = undefined;
+        changed = true;
+      }
+      continue;
+    }
+    try {
+      await deleteUpload(userId, note.audioPath);
+    } catch {
+      /* still clear the pointer */
+    }
+    note.audioPath = null;
+    note.audioSavedAt = undefined;
+    note.audioDriveUrl = undefined;
+    note.updatedAt = new Date().toISOString();
+    changed = true;
+  }
+  return changed;
+}
+
+/** Flatten Drive course folders and trash any Voice recordings folders. */
+export async function migrateAllCourseDriveLayouts(state: AppState) {
+  if (!state.settings.google.refreshToken && !state.settings.google.accessToken) return false;
+  const ready = await ensureAskualaDrive(state);
+  if (!ready.ok || !state.settings.google.driveRootId) return false;
+  let changed = false;
+  for (const course of state.courses) {
+    if (course.dropped) continue;
+    try {
+      const hit = await syncCourseDriveFolder(state, course);
+      if (hit.ok) changed = true;
+    } catch {
+      /* next tick */
+    }
+  }
+  for (const note of state.notes) {
+    if (note.audioDriveUrl) {
+      note.audioDriveUrl = undefined;
+      changed = true;
+    }
+  }
+  return changed;
+}
 
 export async function pushStudy(state: AppState, userId: string, note: CourseNote) {
   if (!note.studyPdfPath) return { ok: false as const, reason: "missing" as const };
@@ -549,22 +605,21 @@ export async function pushPlainUploadsToDrive(
   return { ok: true as const };
 }
 
-export async function backfillDrive(state: AppState, userId: string, opts?: { limit?: number }) {
-  const pending = state.notes.some((n) => n.audioPath && !n.audioDriveUrl);
-  if (!pending) return { ok: true as const, uploaded: 0 };
-  const ready = await ensureAskualaDrive(state);
-  if (!ready.ok) return { ok: false as const, reason: ready.reason, uploaded: 0 };
-  const limit = Math.max(1, opts?.limit ?? 3);
-  let uploaded = 0;
-  for (const note of state.notes) {
-    if (uploaded >= limit) break;
-    if (!note.audioPath || note.audioDriveUrl) continue;
-    const course = state.courses.find((c) => c.id === note.courseId);
-    const before = `${note.audioDriveUrl || ""}|${note.attachments.map((a) => a.driveUrl || "").join(",")}`;
-    const hit = await pushNoteUploadsToDrive(state, userId, note, course);
-    if (!hit.ok && hit.reason === "scope") return { ...hit, uploaded };
-    const after = `${note.audioDriveUrl || ""}|${note.attachments.map((a) => a.driveUrl || "").join(",")}`;
-    if (after !== before) uploaded += 1;
+/** Maintain Drive layout + local voice retention (no voice uploads). */
+export async function backfillDrive(state: AppState, userId: string, _opts?: { limit?: number }) {
+  let changed = false;
+  try {
+    if (await migrateAllCourseDriveLayouts(state)) changed = true;
+  } catch (err) {
+    if (isDriveDenied(err)) {
+      state.settings.google.driveOk = false;
+      return { ok: false as const, reason: "scope" as const, uploaded: 0, changed: false };
+    }
   }
-  return { ok: true as const, uploaded };
+  try {
+    if (await expireLocalVoice(state, userId)) changed = true;
+  } catch {
+    /* next tick */
+  }
+  return { ok: true as const, uploaded: changed ? 1 : 0, changed };
 }
