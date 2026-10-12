@@ -12,9 +12,9 @@ Sign in, add your courses, and connect Google if you want your class calendar an
 * What is due in the next 48 hours
 * Big assignments in the next two weeks
 * Work listed by week
-* One email for tomorrow, and one on Sunday for the week ahead
+* One next-day brief email, and one on Sunday for the week ahead
 * Buddy, who can update your planner when you ask
 
-Each person has their own login. Classmates do not see your courses.
+Each person has their own login.
 
 License: use it freely for school.
