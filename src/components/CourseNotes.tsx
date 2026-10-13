@@ -9,6 +9,7 @@ import { nanoid } from "nanoid";
 import { buildStudyDocx, studyFileSlug } from "@/lib/study-docx";
 import { captureStudyPrintPdf, downloadBlob, printStudyGuide, studyGuideHtml } from "@/lib/study-print";
 import { clearNoteDraft, readNoteDraft, writeNoteDraft } from "@/lib/note-draft";
+import { studyPreviewText } from "@/lib/study-markdown";
 
 export function CourseNotes({ courseId }: { courseId: string }) {
   const { data, postForm, postJson } = useBuddy();
@@ -496,7 +497,7 @@ function NoteCard({ note, onOpen, onDelete }: { note: CourseNote; onOpen: () => 
           Delete
         </button>
       </div>
-      {note.summary && <p className="mt-2 line-clamp-3 text-muted">{note.summary}</p>}
+      {note.summary && <p className="mt-2 line-clamp-3 text-muted">{studyPreviewText(note.summary)}</p>}
       {!note.summary && note.body && <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-ink">{note.body}</p>}
     </article>
   );

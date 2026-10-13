@@ -13,6 +13,8 @@ export function normalizeStudyMarkdown(raw: string) {
     "\n\n$$\n$1\n$$\n\n",
   );
 
+  s = fixMathDollars(s);
+
   // Promote mis-tagged Askuala graph DSL; strip CSS/HTML/SVG chart dumps so they never render as “code”.
   s = s.replace(/```([a-z0-9_+-]*)\s*\n([\s\S]*?)```/gi, (full, lang: string, inner: string) => {
     const body = inner.trim();
@@ -34,4 +36,51 @@ export function normalizeStudyMarkdown(raw: string) {
   });
   s = s.replace(/<style[\s\S]*?<\/style>/gi, "");
   return s;
+}
+
+/**
+ * Inline math like `$p = \$40$` breaks remark-math: the escaped dollar closes the span early.
+ * Rewrite currency dollars inside math to \textdollar so KaTeX renders them. Skips code fences.
+ */
+function fixMathDollars(md: string) {
+  let inFence = false;
+  return md
+    .split("\n")
+    .map((line) => {
+      if (/^\s*```/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence || !line.includes("\\$")) return line;
+      return line.replace(/(?<![\\$])\$(?!\$)((?:\\\$|[^$\n])+?)\$(?!\$)/g, (full, inner: string) =>
+        inner.includes("\\$") ? `$${inner.replace(/\\\$/g, "\\textdollar ")}$` : full,
+      );
+    })
+    .join("\n");
+}
+
+/** Plain-text preview of a study guide for note cards (no markdown or LaTeX symbols). */
+export function studyPreviewText(md: string) {
+  return normalizeStudyMarkdown(md || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\$\$[\s\S]*?\$\$/g, " ")
+    .replace(/\$([^$\n]+)\$/g, (_, m: string) =>
+      m
+        .replace(/\\(?:text|mathrm|textbf)\{([^}]*)\}/g, "$1")
+        .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "$1/$2")
+        .replace(/\\(cdot|times)/g, "×")
+        .replace(/\\textdollar\s*/g, "$")
+        .replace(/\\[a-zA-Z]+/g, "")
+        .replace(/[_^{}]/g, ""),
+    )
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^\s*\|?[-:| ]+\|?\s*$/gm, "")
+    .replace(/\|/g, " ")
+    .replace(/\*\*|__|\*|`/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^-{3,}$/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
