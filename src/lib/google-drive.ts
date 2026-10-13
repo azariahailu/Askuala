@@ -384,6 +384,8 @@ export async function pushBytesToDrive(opts: {
   buf?: Buffer;
   storedName?: string;
   replace?: boolean;
+  /** Put the file directly in the Askuala folder instead of a course folder. */
+  atRoot?: boolean;
 }) {
   const ready = await ensureAskualaDrive(opts.state);
   if (!ready.ok) return { ok: false as const, reason: ready.reason };
@@ -396,7 +398,9 @@ export async function pushBytesToDrive(opts: {
     }
   }
   if (!buf?.length) return { ok: false as const, reason: "missing" as const };
-  const parent = await courseBin(ready.drive, opts.state.settings.google.driveRootId, opts.course, opts.kind);
+  const parent = opts.atRoot
+    ? opts.state.settings.google.driveRootId
+    : await courseBin(ready.drive, opts.state.settings.google.driveRootId, opts.course, opts.kind);
   const existing = await findFileByName(ready.drive, parent, opts.displayName);
   if (existing && !opts.replace) return { ok: true as const, ...existing };
   if (existing && opts.replace) {

@@ -2,7 +2,10 @@ import { fail, mutate } from "@/lib/api";
 import { extractTextFromBuffer } from "@/lib/extract-text";
 import { defaultAlerts, nid, nowIso } from "@/lib/ids";
 import { generateStudySummary } from "@/lib/note-summary";
-import { readUpload, saveUpload } from "@/lib/store";
+import { markNoteRemoved, readUpload, saveUpload } from "@/lib/store";
+import { after } from "next/server";
+import { backupNotesToDrive } from "@/lib/notes-backup";
+import { requireUser } from "@/lib/auth";
 import type { Attachment, CourseNote, NoteKind } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -36,14 +39,40 @@ async function textFromNoteAttachments(userId: string, note: CourseNote) {
   return chunks.join("\n\n");
 }
 
+/** If the server copy of a note is missing (e.g. lost to an older save), restore it from the copy the browser sent. */
+function findOrRestore(state: { notes: CourseNote[] }, id: string, form: FormData) {
+  let note = state.notes.find((n) => n.id === id);
+  if (note) return note;
+  try {
+    const sent = JSON.parse(String(form.get("noteJson") || "")) as CourseNote;
+    if (sent?.id === id && sent.courseId) {
+      state.notes.push(sent);
+      note = sent;
+    }
+  } catch {
+    /* nothing sent */
+  }
+  if (!note) throw new Error("Note not found");
+  return note;
+}
+
+async function scheduleBackup() {
+  try {
+    const user = await requireUser();
+    after(() => backupNotesToDrive(user.id).catch((e) => console.error("notes backup", e)));
+  } catch {
+    /* not signed in */
+  }
+}
+
 export async function POST(req: Request) {
+  await scheduleBackup();
   try {
     const form = await req.formData();
     const updateId = String(form.get("updateId") || "");
     if (updateId) {
       return await mutate(async (state, userId) => {
-        const note = state.notes.find((n) => n.id === updateId);
-        if (!note) throw new Error("Note not found");
+        const note = findOrRestore(state, updateId, form);
         if (form.has("transcript")) note.transcript = String(form.get("transcript") || "");
         if (form.has("guideDirections")) note.guideDirections = String(form.get("guideDirections") || "");
         const audio = form.get("audio");
@@ -60,8 +89,7 @@ export async function POST(req: Request) {
     const regenerateId = String(form.get("regenerateId") || "");
     if (regenerateId) {
       return await mutate(async (state, userId) => {
-        const note = state.notes.find((n) => n.id === regenerateId);
-        if (!note) throw new Error("Note not found");
+        const note = findOrRestore(state, regenerateId, form);
         const guideDirections = String(form.get("guideDirections") || "");
         note.guideDirections = guideDirections;
         if (form.has("transcript")) note.transcript = String(form.get("transcript") || "");
@@ -156,7 +184,7 @@ export async function POST(req: Request) {
         attachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] })),
       );
       let study = "";
-      try {
+      if (form.get("buildGuide") === "1") try {
         study = await generateStudySummary({
           transcript,
           title,
@@ -205,9 +233,21 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  await scheduleBackup();
   try {
     const body = await req.json();
     return await mutate(async (state, userId) => {
+      if (body.restoreFromTrash) {
+        state.trash = state.trash || [];
+        const hit = state.trash.find((n) => n.id === body.id);
+        if (!hit) throw new Error("That note is not in the recycle bin.");
+        state.trash = state.trash.filter((n) => n.id !== body.id);
+        const { deletedAt: _gone, ...note } = hit;
+        void _gone;
+        note.updatedAt = nowIso();
+        state.notes.push(note);
+        return { note };
+      }
       const note = state.notes.find((n) => n.id === body.id);
       if (!note) throw new Error("Note not found");
       if (body.saveSummary && typeof body.summary === "string") {
@@ -262,22 +302,36 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  await scheduleBackup();
   try {
     const url = new URL(req.url);
     let id = url.searchParams.get("id") || "";
+    let permanent = url.searchParams.get("permanent") === "1";
     if (!id) {
       try {
         const body = await req.json();
         id = String(body.id || "");
+        permanent = permanent || Boolean(body.permanent);
       } catch {
         /* no body */
       }
     }
     if (!id) throw new Error("Note not found");
     return await mutate((state) => {
-      const before = state.notes.length;
+      state.trash = state.trash || [];
+      if (permanent) {
+        // Permanent delete only from the recycle bin.
+        const before = state.trash.length;
+        state.trash = state.trash.filter((n) => n.id !== id);
+        if (state.trash.length === before) throw new Error("That note is not in the recycle bin.");
+        markNoteRemoved(state, id);
+        return { ok: true };
+      }
+      const note = state.notes.find((n) => n.id === id);
+      if (!note) throw new Error("Note not found");
       state.notes = state.notes.filter((n) => n.id !== id);
-      if (state.notes.length === before) throw new Error("Note not found");
+      state.trash.unshift({ ...note, deletedAt: nowIso() });
+      markNoteRemoved(state, id);
       return { ok: true };
     });
   } catch (err) {

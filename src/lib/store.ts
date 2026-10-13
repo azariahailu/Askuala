@@ -104,6 +104,7 @@ function hydrateState(parsed: AppState): AppState {
         ? n
         : { ...n, studyPdfPath: undefined, studyPdfDriveUrl: undefined, studyPdfFmt: undefined },
     ),
+    trash: parsed.trash ?? [],
     messages: parsed.messages ?? [],
     chats: parsed.chats ?? [],
     activeChatId: parsed.activeChatId ?? null,
@@ -238,6 +239,50 @@ function plannerWeight(state: { courses?: unknown[]; events?: unknown[]; notes?:
   return (state.courses?.length || 0) + (state.events?.length || 0) + (state.notes?.length || 0) + (state.chats?.length || 0);
 }
 
+/** Notes deliberately removed this request (moved to the bin or permanently deleted). */
+const removedThisWrite = new WeakMap<AppState, Set<string>>();
+export function markNoteRemoved(state: AppState, id: string) {
+  const set = removedThisWrite.get(state) || new Set<string>();
+  set.add(id);
+  removedThisWrite.set(state, set);
+}
+
+function mergeLostNotes(state: AppState, latest: AppState) {
+  const removed = removedThisWrite.get(state) || new Set<string>();
+  const have = new Set(state.notes.map((n) => n.id));
+  const binned = new Set((state.trash || []).map((n) => n.id));
+  for (const n of latest.notes || []) {
+    if (have.has(n.id) || binned.has(n.id) || removed.has(n.id)) continue;
+    state.notes.push(n);
+  }
+  // Same for the bin: don't drop a binned note another save put there.
+  state.trash = state.trash || [];
+  const trashIds = new Set(state.trash.map((n) => n.id));
+  for (const n of latest.trash || []) {
+    if (trashIds.has(n.id) || have.has(n.id) || removed.has(n.id)) continue;
+    state.trash.push(n);
+  }
+  // If the other save edited a note more recently, keep its newer copy.
+  const newer = new Map((latest.notes || []).map((n) => [n.id, n]));
+  state.notes = state.notes.map((n) => {
+    const other = newer.get(n.id);
+    return other && other.updatedAt > n.updatedAt ? other : n;
+  });
+}
+
+const HISTORY_KEEP = 300;
+/** Keeps an older copy of the planner before every overwrite, so any save can be rolled back. */
+async function snapshotStore(userId: string, latest: AppState) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  await persistWriteJson(`users/${userId}/history/${stamp}.json`, latest);
+  try {
+    const keys = (await persistList(`users/${userId}/history/`)).filter((k) => k.endsWith(".json")).sort();
+    for (const k of keys.slice(0, Math.max(0, keys.length - HISTORY_KEEP))) await persistDelete(k);
+  } catch {
+    /* pruning is best effort */
+  }
+}
+
 export async function writeState(userId: string, state: AppState, opts?: { light?: boolean }) {
   migrateChats(state);
   if (!opts?.light) {
@@ -276,6 +321,17 @@ export async function writeState(userId: string, state: AppState, opts?: { light
         }
       }
     }
+  }
+  // Never silently lose a note: re-read what's saved right now (another save may have landed
+  // since this request read the file) and keep every note that isn't in the new copy or the bin.
+  try {
+    const latest = await persistReadJson<AppState>(storeKey(userId));
+    if (latest) {
+      mergeLostNotes(state, latest);
+      await snapshotStore(userId, latest);
+    }
+  } catch (e) {
+    console.error("writeState guard", e);
   }
   const persist = { ...state, resume: undefined };
   await persistWriteJson(storeKey(userId), persist);
@@ -373,6 +429,7 @@ export function toClient(user: AppUser, state: AppState): ClientState {
     })),
     events: state.events,
     notes: state.notes,
+    trash: state.trash || [],
     messages: activeChat(state)?.messages ?? [],
     chats: state.chats.map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, pinned: Boolean(c.pinned) })),
     activeChatId: state.activeChatId,

@@ -242,10 +242,14 @@ export type CalendarFeed = {
   lastSyncedAt?: string;
 };
 
+export type TrashedNote = CourseNote & { deletedAt: string };
+
 export type AppState = {
   courses: Course[];
   events: CourseEvent[];
   notes: CourseNote[];
+  /** Recycle bin: deleted notes stay here until the student recovers or permanently deletes them. */
+  trash?: TrashedNote[];
   messages: ChatMessage[];
   chats: ChatThread[];
   activeChatId: string | null;
@@ -287,6 +291,7 @@ export type ClientState = {
   courses: Course[];
   events: CourseEvent[];
   notes: CourseNote[];
+  trash: TrashedNote[];
   messages: ChatMessage[];
   chats: { id: string; title: string; updatedAt: string; pinned?: boolean }[];
   activeChatId: string | null;

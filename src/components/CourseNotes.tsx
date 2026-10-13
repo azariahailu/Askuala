@@ -13,6 +13,10 @@ import { clearNoteDraft, readNoteDraft, writeNoteDraft } from "@/lib/note-draft"
 export function CourseNotes({ courseId }: { courseId: string }) {
   const { data, postForm, postJson } = useBuddy();
   const notes = (data?.notes || []).filter((n) => n.courseId === courseId);
+  const trash = (data?.trash || []).filter((n) => n.courseId === courseId);
+  const [showBin, setShowBin] = useState(false);
+  const [saving, setSaving] = useState<"" | "save" | "build">("");
+  const [savedMsg, setSavedMsg] = useState("");
   const course = data?.courses.find((c) => c.id === courseId);
   const courseLabel = `${course?.code || ""} ${course?.name || ""}`.trim();
   const [kind, setKind] = useState<NoteKind>("note");
@@ -195,7 +199,11 @@ export function CourseNotes({ courseId }: { courseId: string }) {
     setRecording(false);
   }
 
-  async function save() {
+  async function save(build = false) {
+    if (saving) return;
+    setErr("");
+    setSavedMsg("");
+    setSaving(build ? "build" : "save");
     try {
       const form = new FormData();
       form.set("courseId", courseId);
@@ -209,6 +217,7 @@ export function CourseNotes({ courseId }: { courseId: string }) {
       form.set("alerts", JSON.stringify(alerts));
       for (const f of files) form.append("files", f);
       if (audio) form.append("audio", new File([audio], "voice.webm", { type: "audio/webm" }));
+      if (build) form.set("buildGuide", "1");
       await postForm("/api/notes", form);
       setTitle("");
       setBody("");
@@ -220,8 +229,11 @@ export function CourseNotes({ courseId }: { courseId: string }) {
       finals.current = "";
       live.current = { title: "", body: "", transcript: "", summary: "", kind, catalogDate };
       clearNoteDraft(courseId);
+      setSavedMsg(build ? "Saved with a study guide. Backed up to your Drive." : "Saved. Backed up to your Drive. Open it to build a study guide anytime.");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Could not save note");
+      setErr(`${e instanceof Error ? e.message : "Could not save note"}. Your note is still kept in this browser, so nothing is lost. Try Save again.`);
+    } finally {
+      setSaving("");
     }
   }
 
@@ -271,7 +283,7 @@ export function CourseNotes({ courseId }: { courseId: string }) {
               placeholder="Live transcript appears here: edit freely."
             />
             {recovered && transcript && (
-              <p className="mt-2 text-xs text-gold-2">Recovered a draft from this browser. Hit Save so it is stored on the server.</p>
+              <p className="mt-2 text-xs text-gold-2">This text was never saved, so it was brought back from this browser. Hit Save to store it.</p>
             )}
             <p className="mt-2 text-xs text-muted">
               {recording
@@ -325,9 +337,17 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           PDF, Word, and text files are read into the study guide. For lecture video, use Record + transcribe or paste a transcript. Study guides and voice notes can go to your Drive under Askuala.
         </p>
         {err && <p className="mt-2 text-sm text-red-400">{err}</p>}
-        <button onClick={save} className="mt-3 rounded-lg bg-gold px-3 py-2 text-on-gold">
-          Save
-        </button>
+        {savedMsg && <p className="mt-2 text-sm text-green-400">{savedMsg}</p>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={() => void save(false)} disabled={Boolean(saving)} className="rounded-lg bg-gold px-3 py-2 text-on-gold disabled:opacity-60">
+            {saving === "save" ? "Saving…" : "Save"}
+          </button>
+          {kind === "note" && (
+            <button onClick={() => void save(true)} disabled={Boolean(saving)} className="rounded-lg border border-gold/40 px-3 py-2 text-gold-2 disabled:opacity-60">
+              {saving === "build" ? "Saving & writing guide…" : "Save & build study guide"}
+            </button>
+          )}
+        </div>
       </div>
       <div>
         <div className="mb-2 flex items-center justify-between">
@@ -354,6 +374,54 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           ))}
           {shown.length === 0 && <p className="text-sm text-muted">Nothing saved in this course yet.</p>}
         </div>
+        <div className="mt-6 rounded-xl border border-line p-3">
+          <button type="button" className="flex w-full justify-between text-sm" onClick={() => setShowBin((v) => !v)}>
+            <span>Recycle bin ({trash.length})</span>
+            <span className="text-gold-2">{showBin ? "Hide" : "Show"}</span>
+          </button>
+          {showBin && (
+            <div className="mt-3 space-y-2">
+              {trash.length === 0 && <p className="text-xs text-muted">Deleted notes show up here. Nothing is gone until you delete it forever.</p>}
+              {trash.map((n) => (
+                <div key={n.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface p-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{n.title}</p>
+                    <p className="text-[11px] text-muted">Deleted {new Date(n.deletedAt).toLocaleString()}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-3">
+                    <button
+                      type="button"
+                      className="text-xs text-gold-2"
+                      onClick={async () => {
+                        try {
+                          await postJson("/api/notes", { id: n.id, restoreFromTrash: true }, "PATCH");
+                        } catch (e) {
+                          setErr(e instanceof Error ? e.message : "Could not recover note");
+                        }
+                      }}
+                    >
+                      Recover
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-red-400"
+                      onClick={async () => {
+                        if (!window.confirm(`Delete "${n.title}" forever? This can't be undone.`)) return;
+                        try {
+                          await postJson(`/api/notes?id=${encodeURIComponent(n.id)}&permanent=1`, {}, "DELETE");
+                        } catch (e) {
+                          setErr(e instanceof Error ? e.message : "Could not delete note");
+                        }
+                      }}
+                    >
+                      Delete forever
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       {openNote && (
         <StudyWindow
@@ -363,6 +431,7 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           onRegenerate={async (guideDirections, rebuildFiles, transcript, audio) => {
             const form = new FormData();
             form.set("regenerateId", openNote.id);
+            form.set("noteJson", JSON.stringify(openNote));
             form.set("guideDirections", guideDirections);
             form.set("transcript", transcript);
             for (const f of rebuildFiles) form.append("files", f);
@@ -374,6 +443,7 @@ export function CourseNotes({ courseId }: { courseId: string }) {
           onSaveVoice={async (transcript, audio, guideDirections) => {
             const form = new FormData();
             form.set("updateId", openNote.id);
+            form.set("noteJson", JSON.stringify(openNote));
             form.set("transcript", transcript);
             form.set("guideDirections", guideDirections);
             if (audio) form.append("audio", new File([audio], "voice.webm", { type: "audio/webm" }));
@@ -735,7 +805,7 @@ function StudyWindow({
                 }
               }}
             >
-              {busy ? "Writing study guide…" : "Rebuild study guide"}
+              {busy ? "Writing study guide…" : note.summary ? "Rebuild study guide" : "Build study guide"}
             </button>
             <button className="rounded-lg px-3 py-1 text-sm" onClick={onClose}>
               Close
