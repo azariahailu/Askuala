@@ -119,9 +119,20 @@ On a note you can:
 
 - Set a **title**, **catalog date**, and body.
 - Attach files (PDFs, images, docs). Open them later from the note.
-- For kind **note**: **Record + transcribe** (live transcript, up to about 2 hours). Transcript autosaves in this browser until you **Save**. Saving writes the audio + transcript on the server and generates a **study guide** (you can edit it). Guides should be lecture-length, with drawn graphs (supply/demand and other plots) when the session used them. Print, download as Word, or share.
+- For kind **note**: **Record + transcribe** (live transcript, up to about 2 hours). Transcript autosaves in this browser until you **Save**. Saving writes the audio + transcript on the server. Print, download as Word, or share.
 - For kind **reminder**: a remind-at time plus email/popup lead times.
 - Sort saved notes by date or kind. Open one to reread, regenerate the summary, or delete it.
+
+### Study guides
+
+- Click **Build study guide** to turn your recording, transcript, typed notes, and uploaded files into a full lesson: what to know, core ideas, graphs, worked examples, key terms, and practice questions. Any length of input works.
+- A countdown starting at **1:30** shows while it builds. If it takes longer, it shows about how much time is left, then disappears when the guide is ready.
+- Gemini **looks at your files**, not just their text: photos, screenshots, every page of a PDF, and the pictures inside slides and Word docs. It explains what the images show and redraws the important graphs.
+- Up to **24 images** are read per build (repeats like logos count once). If your files have more, a yellow note under the guide tells you. Rebuild with “keep everything and continue with the remaining images” to cover the rest.
+- Graphs are real charts: smooth curves (cost curves, isoquants), straight lines where they belong, and stats charts like histograms, boxplots, pie charts, scatter plots, and normal curves.
+- Math, subscripts, superscripts, money, tables, and code are formatted cleanly.
+- **Rebuild with instructions** edits your current guide: tell it what to change (“no for loops”, “add an example on marginal cost”) and it applies that everywhere and leaves the rest alone. Leave instructions empty for a fresh guide.
+- Double-click a guide to edit it yourself. If a rebuild comes out worse, restore the previous version.
 
 Uploaded lecture files stay on this ${APP_NAME} account (not copied to Drive). When Drive is allowed, the print-style study-guide PDF goes to **Askuala → year → term → course** (12 hours after the last rebuild). Voice stays on the site for 7 days and is never uploaded to Drive. One Askuala folder for everyone.
 
