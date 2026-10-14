@@ -51,9 +51,12 @@ function fixMathDollars(md: string) {
         inFence = !inFence;
         return line;
       }
-      if (inFence || !line.includes("\\$")) return line;
+      if (inFence) return line;
+      // KaTeX has no math-mode \textdollar; wrap any stray ones in \text{}.
+      line = line.replace(/(?<!\\text\{)\\textdollar\b\s*/g, "\\text{\\textdollar}");
+      if (!line.includes("\\$")) return line;
       return line.replace(/(?<![\\$])\$(?!\$)((?:\\\$|[^$\n])+?)\$(?!\$)/g, (full, inner: string) =>
-        inner.includes("\\$") ? `$${inner.replace(/\\\$/g, "\\textdollar ")}$` : full,
+        inner.includes("\\$") ? `$${inner.replace(/\\\$/g, "\\text{\\textdollar}")}$` : full,
       );
     })
     .join("\n");
@@ -69,7 +72,7 @@ export function studyPreviewText(md: string) {
         .replace(/\\(?:text|mathrm|textbf)\{([^}]*)\}/g, "$1")
         .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "$1/$2")
         .replace(/\\(cdot|times)/g, "×")
-        .replace(/\\textdollar\s*/g, "$")
+        .replace(/\\text\{\\textdollar\}|\\textdollar\s*/g, "$")
         .replace(/\\[a-zA-Z]+/g, "")
         .replace(/[_^{}]/g, ""),
     )

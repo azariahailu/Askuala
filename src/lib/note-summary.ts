@@ -117,6 +117,7 @@ Transcript and files:
 - A 50-minute lecture must NOT become one page of bullets.
 
 Math: dollar-delimited LaTeX (inline and display). GitHub-flavored markdown tables.
+Money: in prose write $40 plainly. Inside math NEVER write \\$ (it breaks rendering); write \\text{\\textdollar}40 instead. Superscripts/subscripts only inside math ($x^2$, $MP_L$), never bare in prose or as Unicode.
 
 Code (CS, stats, data science, algorithms, programming lectures):
 - Put examples in fenced markdown blocks with the real language tag (python, r, java, c, cpp, csharp, sql, javascript, typescript, go, rust, bash, matlab, julia, plaintext, or whatever the course used).
