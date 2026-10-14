@@ -1,3 +1,4 @@
+import type { InlineMedia } from "./llm";
 import { friendlyGeminiError, llmChat } from "./llm";
 import type { AppSettings, Course } from "./types";
 
@@ -217,6 +218,8 @@ export async function generateStudySummary(opts: {
   existing?: string;
   directions?: string;
   extraMaterials?: string;
+  /** Images, PDFs and slide pictures Gemini should look at directly. */
+  media?: InlineMedia[];
 }) {
   const course = opts.course;
   const existing = (opts.existing || "").trim();
@@ -246,6 +249,7 @@ Course: ${course?.code || ""} ${course?.name || ""}`,
         },
         {
           role: "user",
+          media: opts.media,
           content: [
             `Existing guide headings (already written: do not repeat):\n${headingsOf(existing) || "(none)"}`,
             directions && `Add only:\n${directions}`,
@@ -282,6 +286,7 @@ The student's directions are binding instructions. Follow them exactly and compl
         },
         {
           role: "user",
+          media: opts.media,
           content: [
             `STUDENT DIRECTIONS (must be followed):\n${directions.slice(0, 6000)}`,
             `EXISTING STUDY GUIDE (edit this; keep everything the directions don't touch):\n${existing.slice(0, 60000)}`,
@@ -316,7 +321,7 @@ The student's directions are binding instructions. Follow them exactly and compl
     opts.title && `Session title: ${opts.title}`,
     opts.body && `Student notes:\n${opts.body}`,
     transcript && `Raw transcript (source only, do not echo — expand into a FULL lesson):\n${transcript.slice(0, 24000)}`,
-    opts.extraMaterials && `Uploaded files (source material: teach from this, do not dump it):\n${opts.extraMaterials.slice(0, 18000)}`,
+    opts.extraMaterials && `Uploaded files (source material: teach from this, do not dump it). The attached images and PDF pages are the same files: LOOK at them. Read every graph, diagram, table, equation and handwritten note in them, teach what they show, and redraw important graphs as graph fences with the real curves and numbers:\n${opts.extraMaterials.slice(0, 18000)}`,
     existing && directions && `Current study guide draft (edit only what they asked):\n${existing.slice(0, 14000)}`,
     directions && `Student directions (follow these):\n${directions.slice(0, 6000)}`,
   ]
@@ -331,6 +336,7 @@ The student's directions are binding instructions. Follow them exactly and compl
         { role: "system", content: studyGuideSystem(course, thicker) },
         {
           role: "user",
+          media: opts.media,
           content: thicker
             ? `${src.slice(0, 36000)}\n\nYour previous answer was too short for this lecture. Expand into a full revision guide (2200+ words) covering every major point.`
             : src.slice(0, 36000),

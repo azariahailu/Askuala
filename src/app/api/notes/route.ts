@@ -1,3 +1,4 @@
+import { mediaFromUploads } from "@/lib/upload-media";
 import { fail, mutate } from "@/lib/api";
 import { extractTextFromBuffer } from "@/lib/extract-text";
 import { defaultAlerts, nid, nowIso } from "@/lib/ids";
@@ -23,6 +24,18 @@ async function textFromUploads(files: { name: string; mime: string; buf?: Buffer
     }
   }
   return chunks.join("\n\n");
+}
+
+async function mediaFromNoteAttachments(userId: string, note: CourseNote, extra: { name: string; mime: string; buf?: Buffer }[] = []) {
+  const files: { name: string; mime: string; buf?: Buffer }[] = [];
+  for (const att of note.attachments || []) {
+    try {
+      files.push({ name: att.filename, mime: att.mime, buf: await readUpload(userId, att.path) });
+    } catch {
+      /* missing */
+    }
+  }
+  return mediaFromUploads([...files, ...extra]);
 }
 
 async function textFromNoteAttachments(userId: string, note: CourseNote) {
@@ -123,6 +136,7 @@ export async function POST(req: Request) {
         );
         if (newAttachments.length) note.attachments = [...(note.attachments || []), ...newAttachments];
         const extraMaterials = [fromOld, fromNew].filter(Boolean).join("\n\n");
+        const media = await mediaFromNoteAttachments(userId, { ...note, attachments: (note.attachments || []).filter((a) => !newAttachments.includes(a)) }, newAttachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] })));
         const prior = note.summary;
         note.summary = await generateStudySummary({
           transcript: note.transcript,
@@ -133,6 +147,7 @@ export async function POST(req: Request) {
           existing: note.summary,
           directions: guideDirections,
           extraMaterials,
+          media,
         });
         if (prior.trim() && prior !== note.summary) note.summaryPrevious = prior;
         if (note.summary.trim() && note.summary !== prior) {
@@ -193,6 +208,7 @@ export async function POST(req: Request) {
           settings: state.settings,
           directions: summary,
           extraMaterials,
+          media: await mediaFromUploads(attachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] }))),
         });
       } catch {
         study = "";
@@ -270,6 +286,7 @@ export async function PATCH(req: Request) {
       } else if (body.regenerateSummary) {
         const course = state.courses.find((c) => c.id === note.courseId);
         const extraMaterials = await textFromNoteAttachments(userId, note);
+        const media = await mediaFromNoteAttachments(userId, note);
         const prior = note.summary;
         const guideDirections = String(body.guideDirections || "");
         note.guideDirections = guideDirections;
@@ -282,6 +299,7 @@ export async function PATCH(req: Request) {
           existing: note.summary,
           directions: guideDirections,
           extraMaterials,
+          media,
         });
         if (prior.trim() && prior !== note.summary) note.summaryPrevious = prior;
         if (note.summary.trim() && note.summary !== prior) {

@@ -4,7 +4,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AppSettings } from "./types";
 
-export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
+export type InlineMedia = { mimeType: string; data: string; label?: string };
+export type ChatMsg = { role: "system" | "user" | "assistant"; content: string; media?: InlineMedia[] };
 
 const OLLAMA = "http://127.0.0.1:11434";
 const PREFERRED = process.env.OLLAMA_MODEL || "deepseek-r1:8b";
@@ -434,7 +435,13 @@ async function geminiChat(messages: ChatMsg[], json = false, long = false, key =
     .filter((m) => m.role !== "system")
     .map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
+      parts: [
+        ...(m.media || []).flatMap((x) => [
+          ...(x.label ? [{ text: `[Image/page from ${x.label}]` }] : []),
+          { inlineData: { mimeType: x.mimeType, data: x.data } },
+        ]),
+        { text: m.content },
+      ],
     }));
   const hit = await geminiGenerate({ key, system, contents, json, long });
   if (!hit.text) throw new Error("gemini empty");
@@ -449,7 +456,7 @@ async function groqChat(messages: ChatMsg[], json = false, long = false) {
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-      messages,
+      messages: messages.map(({ role, content }) => ({ role, content })),
       temperature: json ? 0.1 : 0.4,
       max_tokens: json || long ? 4096 : 2048,
       response_format: json ? { type: "json_object" } : undefined,
