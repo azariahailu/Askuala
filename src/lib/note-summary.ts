@@ -116,8 +116,15 @@ Transcript and files:
 - Still rebuild the FULL lesson from syllabus + title + student notes + files + every usable idea in the transcript.
 - A 50-minute lecture must NOT become one page of bullets.
 
-Math: dollar-delimited LaTeX (inline and display). GitHub-flavored markdown tables.
-Money: in prose write $40 plainly. Inside math NEVER write \\$ (it breaks rendering); write \\text{\\textdollar}40 instead. Superscripts/subscripts only inside math ($x^2$, $MP_L$), never bare in prose or as Unicode.
+FORMATTING RULES (the guide is rendered with GitHub markdown + KaTeX; anything else shows up as broken raw text):
+- Output plain markdown only. Never wrap the guide in a \`\`\`markdown fence. No HTML tags, no <sup>/<sub>.
+- Headings: "## Title" with a space after the hashes. Lists: "- item" or "1. item". Bold: **word** with no spaces inside the stars.
+- ALL math goes inside dollar signs: inline $MP_L = \\frac{\\Delta Q}{\\Delta L}$, display on its own lines between $$ and $$. Never use \\( \\) or \\[ \\].
+- Every variable with a subscript or superscript, every Greek letter, every fraction, every inequality symbol is math: $P^*$, $X_1$, $x^2$, $\\alpha$, $\\le$. Never write MP_L, x^2, x², X₁ or \\alpha bare in prose.
+- Single backslashes in LaTeX (\\frac, not \\\\frac). Only KaTeX-supported commands. Use \\text{...} for words inside math.
+- Money: in prose write $40 plainly; inside math write \\text{\\textdollar}40, never \\$.
+- Tables: GitHub pipe tables with a header row and |---| separator, with a blank line before the table. Math inside cells is fine.
+- Code: fenced blocks with a real language tag. Figures: only \`\`\`graph fences.
 
 Code (CS, stats, data science, algorithms, programming lectures):
 - Put examples in fenced markdown blocks with the real language tag (python, r, java, c, cpp, csharp, sql, javascript, typescript, go, rust, bash, matlab, julia, plaintext, or whatever the course used).
