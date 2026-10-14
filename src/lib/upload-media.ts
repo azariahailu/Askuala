@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { createHash } from "crypto";
 import type { InlineMedia } from "./llm";
 
 /**
@@ -17,12 +18,31 @@ function ext(name: string) {
 }
 
 export async function mediaFromUploads(files: UploadFile[]): Promise<InlineMedia[]> {
+  return (await mediaBatch(files)).media;
+}
+
+/**
+ * Picks up to MAX_IMAGES unique visuals. Duplicates (same logo on every slide) count once.
+ * `skip` holds keys already shown to Gemini, so "keep everything and continue" moves on to the next batch.
+ * Returns the keys sent and how many unique visuals exist in total.
+ */
+export async function mediaBatch(files: UploadFile[], skip: Set<string> = new Set()) {
   const out: InlineMedia[] = [];
+  const keys: string[] = [];
+  const seen = new Set<string>();
   let total = 0;
+  let bytes = 0;
+  let full = false;
   const push = (mimeType: string, buf: Buffer, label: string) => {
-    if (out.length >= MAX_IMAGES || total + buf.length > MAX_TOTAL) return false;
+    const key = createHash("sha1").update(buf).digest("hex").slice(0, 16);
+    if (seen.has(key)) return true;
+    seen.add(key);
+    total++;
+    if (skip.has(key)) return true;
+    if (full || out.length >= MAX_IMAGES || bytes + buf.length > MAX_TOTAL) { full = true; return true; }
     out.push({ mimeType, data: buf.toString("base64"), label });
-    total += buf.length;
+    keys.push(key);
+    bytes += buf.length;
     return true;
   };
   for (const f of files) {
@@ -42,12 +62,12 @@ export async function mediaFromUploads(files: UploadFile[]): Promise<InlineMedia
         for (const p of media) {
           const buf = Buffer.from(await zip.files[p].async("uint8array"));
           if (buf.length < MIN_IMAGE) continue;
-          if (!push(IMG[ext(p)] || "image/png", buf, `${f.name} (${p.split("/").pop()})`)) break;
+          push(IMG[ext(p)] || "image/png", buf, `${f.name} (${p.split("/").pop()})`);
         }
       }
     } catch {
       /* unreadable file: text extraction still covers it */
     }
   }
-  return out;
+  return { media: out, keys, total };
 }

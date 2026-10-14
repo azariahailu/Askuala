@@ -97,6 +97,9 @@ export type CourseNote = {
   summary: string;
   /** Last study guide before a rebuild, so Keep-and-add mistakes can be undone. */
   summaryPrevious?: string;
+  /** Visuals Gemini has seen for the current guide, and how many unique visuals the files hold. */
+  mediaSentKeys?: string[];
+  mediaTotal?: number;
   audioPath: string | null;
   /** When the current voice file was saved; deleted from Askuala after 7 days (never kept on Drive). */
   audioSavedAt?: string;

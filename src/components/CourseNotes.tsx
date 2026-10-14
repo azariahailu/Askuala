@@ -904,6 +904,11 @@ function StudyWindow({
             ) : (
               <div className="text-[15px] leading-relaxed">No guide yet: add a transcript and save, then rebuild.</div>
             )}
+            {note.summary && (note.mediaTotal || 0) > (note.mediaSentKeys?.length || 0) && (
+              <p className="mb-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Gemini has seen {note.mediaSentKeys?.length || 0} of {note.mediaTotal} images from your files (up to 24 per build). To cover the rest, rebuild with instructions like “keep everything and continue with the remaining images”.
+              </p>
+            )}
             <p className="mb-3 text-xs text-muted">
               Voice stays on Askuala for 7 days, then is deleted (never copied to Drive). Study-guide PDFs go to Drive under Askuala → year → term → course after 12 hours. Lecture file uploads stay in Askuala only.
             </p>

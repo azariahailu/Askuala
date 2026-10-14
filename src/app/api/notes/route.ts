@@ -1,4 +1,5 @@
-import { mediaFromUploads } from "@/lib/upload-media";
+import { mediaFromUploads, mediaBatch } from "@/lib/upload-media";
+import { keepAndAddRequested } from "@/lib/note-summary";
 import { fail, mutate } from "@/lib/api";
 import { extractTextFromBuffer } from "@/lib/extract-text";
 import { defaultAlerts, nid, nowIso } from "@/lib/ids";
@@ -26,7 +27,20 @@ async function textFromUploads(files: { name: string; mime: string; buf?: Buffer
   return chunks.join("\n\n");
 }
 
-async function mediaFromNoteAttachments(userId: string, note: CourseNote, extra: { name: string; mime: string; buf?: Buffer }[] = []) {
+function wantsContinue(directions?: string) {
+  const d = (directions || "").toLowerCase();
+  return keepAndAddRequested(d) || /\b(continue|remaining|the rest|rest of)\b/.test(d);
+}
+
+async function mediaFromNoteAttachments(userId: string, note: CourseNote, extra: { name: string; mime: string; buf?: Buffer }[] = [], directions?: string) {
+  const cont = wantsContinue(directions);
+  const r = await mediaBatch(await noteFiles(userId, note, extra), cont ? new Set(note.mediaSentKeys || []) : new Set());
+  note.mediaSentKeys = cont ? [...(note.mediaSentKeys || []), ...r.keys] : r.keys;
+  note.mediaTotal = r.total;
+  return r.media;
+}
+
+async function noteFiles(userId: string, note: CourseNote, extra: { name: string; mime: string; buf?: Buffer }[] = []) {
   const files: { name: string; mime: string; buf?: Buffer }[] = [];
   for (const att of note.attachments || []) {
     try {
@@ -35,7 +49,7 @@ async function mediaFromNoteAttachments(userId: string, note: CourseNote, extra:
       /* missing */
     }
   }
-  return mediaFromUploads([...files, ...extra]);
+  return [...files, ...extra];
 }
 
 async function textFromNoteAttachments(userId: string, note: CourseNote) {
@@ -136,7 +150,10 @@ export async function POST(req: Request) {
         );
         if (newAttachments.length) note.attachments = [...(note.attachments || []), ...newAttachments];
         const extraMaterials = [fromOld, fromNew].filter(Boolean).join("\n\n");
-        const media = await mediaFromNoteAttachments(userId, { ...note, attachments: (note.attachments || []).filter((a) => !newAttachments.includes(a)) }, newAttachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] })));
+        const view = { ...note, attachments: (note.attachments || []).filter((a) => !newAttachments.includes(a)) };
+        const media = await mediaFromNoteAttachments(userId, view, newAttachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] })), guideDirections);
+        note.mediaSentKeys = view.mediaSentKeys;
+        note.mediaTotal = view.mediaTotal;
         const prior = note.summary;
         note.summary = await generateStudySummary({
           transcript: note.transcript,
@@ -199,6 +216,7 @@ export async function POST(req: Request) {
         attachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] })),
       );
       let study = "";
+      const newBatch = form.get("buildGuide") === "1" ? await mediaBatch(attachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] }))) : { media: [], keys: [] as string[], total: 0 };
       if (form.get("buildGuide") === "1") try {
         study = await generateStudySummary({
           transcript,
@@ -208,7 +226,7 @@ export async function POST(req: Request) {
           settings: state.settings,
           directions: summary,
           extraMaterials,
-          media: await mediaFromUploads(attachments.map((a) => ({ name: a.filename, mime: a.mime, buf: fileBufs[a.path] }))),
+          media: newBatch.media,
         });
       } catch {
         study = "";
@@ -233,6 +251,7 @@ export async function POST(req: Request) {
         summary: study,
         summaryReadyAt: study.trim() ? nowIso() : undefined,
         guideDirections: summary || undefined,
+        ...(newBatch.total ? { mediaSentKeys: newBatch.keys, mediaTotal: newBatch.total } : {}),
         audioPath,
         audioSavedAt,
         attachments,
@@ -286,9 +305,9 @@ export async function PATCH(req: Request) {
       } else if (body.regenerateSummary) {
         const course = state.courses.find((c) => c.id === note.courseId);
         const extraMaterials = await textFromNoteAttachments(userId, note);
-        const media = await mediaFromNoteAttachments(userId, note);
-        const prior = note.summary;
         const guideDirections = String(body.guideDirections || "");
+        const media = await mediaFromNoteAttachments(userId, note, [], guideDirections);
+        const prior = note.summary;
         note.guideDirections = guideDirections;
         note.summary = await generateStudySummary({
           transcript: note.transcript,
