@@ -271,8 +271,9 @@ Course: ${course?.code || ""} ${course?.name || ""}`,
   if (text && existing.length > 400 && text.length < existing.length * 0.55 && directions) {
     throw new Error("Gemini tried to shrink your study guide. The original was kept: try more specific directions.");
   }
-  if (text && tooThinForTranscript(text, transcript)) {
-    throw new Error("The study guide came back too short for this lecture. Rebuild — Askuala will request a full lesson-length guide.");
+  // Keep the best guide we got. Only refuse one that is genuinely thin, not one a bit under the target.
+  if (text && wordCount(text) < 500 && (transcript || "").trim().length > 4000) {
+    throw new Error("Gemini only wrote a few paragraphs for this lecture, so your current guide was kept. Try Rebuild again.");
   }
   if (text && !looksLikeEcho(text, transcript) && text.length > 80) return text;
   throw new Error(friendlyGeminiError(error || "Gemini did not write a study guide"));
