@@ -219,6 +219,42 @@ Course: ${course?.code || ""} ${course?.name || ""}`,
     return mergeKeepAdd(existing, text, directions);
   }
 
+  // Rebuild with directions on an existing guide: a targeted edit, never a fresh rewrite.
+  if (existing.trim().length > 200 && directions.trim()) {
+    const { text, error } = await llmChat(
+      [
+        {
+          role: "system",
+          content: `You are EDITING a student's existing study guide for ${course?.code || "their course"} ${course?.name || ""}.
+
+The student's directions are binding instructions. Follow them exactly and completely.
+- Apply the directions everywhere they are relevant. Example: "don't use for loops" means every code example in the guide must be rewritten without any for loop (use vectorized code, comprehensions, built-ins, apply/map, while loops, etc. as fits the language). Check every code block before answering.
+- Change ONLY what the directions require. Every other heading, paragraph, formula, table, graph fence and example stays exactly as it is, word for word.
+- Do not shorten, summarize, reorder, re-title, or "improve" parts the student did not ask about.
+- Keep the same markdown conventions: dollar-delimited LaTeX, \`\`\`graph fences for figures, real language tags on code blocks.
+- Output the COMPLETE edited guide in markdown, nothing else: no preamble, no notes about what you changed.`,
+        },
+        {
+          role: "user",
+          content: [
+            `STUDENT DIRECTIONS (must be followed):\n${directions.slice(0, 6000)}`,
+            `EXISTING STUDY GUIDE (edit this; keep everything the directions don't touch):\n${existing.slice(0, 60000)}`,
+            transcript && `Lecture transcript (reference only, if the directions need lecture details):\n${transcript.slice(0, 12000)}`,
+            opts.extraMaterials && `Uploaded files (reference only):\n${opts.extraMaterials.slice(0, 8000)}`,
+            `Reminder, the directions again: ${directions.slice(0, 2000)}\nNow output the full edited guide.`,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      ],
+      opts.settings,
+      false,
+      true,
+    );
+    if (text && text.trim()) return text.trim();
+    throw new Error(friendlyGeminiError(error || "Gemini did not edit the study guide"));
+  }
+
   const materials = [
     course?.name && `Course: ${course.code} ${course.name}`,
     course?.instructor && `Instructor: ${course.instructor}`,
