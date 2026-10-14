@@ -348,6 +348,7 @@ export function CourseNotes({ courseId }: { courseId: string }) {
               {saving === "build" ? "Saving & writing guide…" : "Save & build study guide"}
             </button>
           )}
+          {saving === "build" && <BuildCountdown />}
         </div>
       </div>
       <div>
@@ -521,6 +522,7 @@ function StudyWindow({
   onRestore?: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [err, setErr] = useState("");
   const [guideDirections, setGuideDirections] = useState(note.guideDirections || "");
   const [rebuildFiles, setRebuildFiles] = useState<File[]>([]);
@@ -794,6 +796,7 @@ function StudyWindow({
               disabled={busy || editing || recording}
               onClick={async () => {
                 setBusy(true);
+                setBuilding(true);
                 setErr("");
                 try {
                   await onRegenerate(guideDirections, rebuildFiles, transcriptDraft, audioBlob);
@@ -803,11 +806,13 @@ function StudyWindow({
                   setErr(e instanceof Error ? e.message : "Could not rebuild the study guide");
                 } finally {
                   setBusy(false);
+                  setBuilding(false);
                 }
               }}
             >
               {busy ? "Writing study guide…" : note.summary ? "Rebuild study guide" : "Build study guide"}
             </button>
+            {building && <BuildCountdown />}
             <button className="rounded-lg px-3 py-1 text-sm" onClick={onClose}>
               Close
             </button>
@@ -998,4 +1003,24 @@ declare global {
     webkitSpeechRecognition: new () => SpeechRecognition;
     SpeechRecognition: new () => SpeechRecognition;
   }
+}
+
+/** Shown only while a study guide is being built. Counts down 90s, then estimates time left (builds stop at 5 min). */
+function BuildCountdown() {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const fmt = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+  if (elapsed < 90) {
+    return <span className="text-xs text-muted">Building study guide… {fmt(90 - elapsed)}</span>;
+  }
+  const left = Math.max(0, 300 - elapsed);
+  return (
+    <span className="text-xs text-muted">
+      Taking longer than usual, trying another Gemini model. About {fmt(left)} left at most.
+    </span>
+  );
 }
