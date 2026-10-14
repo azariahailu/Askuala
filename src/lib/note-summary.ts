@@ -261,7 +261,8 @@ Course: ${course?.code || ""} ${course?.name || ""}`,
   }
 
   let { text, error } = await once(false);
-  if (text && tooThinForTranscript(text, transcript)) {
+  const editing = Boolean(existing && directions);
+  if (text && !editing && tooThinForTranscript(text, transcript)) {
     const retry = await once(true);
     if (retry.text && wordCount(retry.text) > wordCount(text)) {
       text = retry.text;
@@ -272,7 +273,7 @@ Course: ${course?.code || ""} ${course?.name || ""}`,
     throw new Error("Gemini tried to shrink your study guide. The original was kept: try more specific directions.");
   }
   // Keep the best guide we got. Only refuse one that is genuinely thin, not one a bit under the target.
-  if (text && wordCount(text) < 500 && (transcript || "").trim().length > 4000) {
+  if (text && !editing && wordCount(text) < 500 && (transcript || "").trim().length > 4000) {
     throw new Error("Gemini only wrote a few paragraphs for this lecture, so your current guide was kept. Try Rebuild again.");
   }
   if (text && !looksLikeEcho(text, transcript) && text.length > 80) return text;
