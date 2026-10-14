@@ -334,9 +334,10 @@ export async function geminiGenerate(opts: {
   const tight = listed.filter((id) => notBusy(id) && TIGHT_FREE_TIER.test(id));
   const models = (cool.length ? [...cool, ...tight] : listed.filter(notBusy).length ? listed.filter(notBusy) : listed).slice(
     0,
-    opts.long ? 8 : 8,
+    opts.long ? 4 : 8,
   );
-  const ms = opts.long ? 45000 : 12000;
+  // Long guides take 40-90s to write; killing them at 45s just restarts the work on another model.
+  const ms = opts.long ? 140000 : 12000;
 
   for (let pass = 0; pass < 2; pass++) {
     if (pass === 1) await sleep(900);
