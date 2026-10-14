@@ -1,5 +1,7 @@
+import { chartSvg, compileExpr, parseChart, sampleFn, smoothPath, type ChartSpec } from "./study-charts";
+
 export type GraphPoint = { x: number; y: number };
-export type GraphCurve = { id: string; label: string; points: GraphPoint[]; dash?: boolean; color?: string };
+export type GraphCurve = { id: string; label: string; points: GraphPoint[]; dash?: boolean; color?: string; linear?: boolean };
 export type GraphMark = { at: GraphPoint; label: string };
 export type StudyGraphSpec = {
   title: string;
@@ -8,6 +10,7 @@ export type StudyGraphSpec = {
   curves: GraphCurve[];
   eq: GraphMark[];
   read: string;
+  chart?: ChartSpec;
 };
 
 const GRAPH_LANG = /^(graph|econ-graph|econ|xygraph|figure|gnuplot)$/i;
@@ -22,6 +25,7 @@ export function looksLikeGraphDsl(text: string) {
   const t = (text || "").trim();
   if (!t) return false;
   if (/^\s*\{/.test(t) && /"curves"\s*:/.test(t)) return true;
+  if (/^\s*(type|chart)\s*:\s*(hist|bar|column|pie|donut|box|scatter|normal|density|bell|t\b|t-?dist|sampling)/im.test(t)) return true;
   const hasAxes = /^\s*(title|x|y|xlabel|ylabel)\s*:/im.test(t);
   const hasCurve = /^\s*[A-Za-z][A-Za-z0-9′']*\s*:\s*-?[\d.]/m.test(t) || /^\s*eq\s*:/im.test(t);
   return hasAxes && hasCurve;
@@ -48,6 +52,8 @@ export function parseStudyGraph(lang: string, raw: string): StudyGraphSpec | nul
   }
   const tagged = isStudyGraphLang(lang) || looksLikeGnuplot(lang, text) || looksLikeGraphDsl(text);
   if (!tagged) return null;
+  const chart = parseChart(text);
+  if (chart) return { title: chart.title, xLabel: "", yLabel: "", curves: [], eq: [], read: chart.read, chart };
   const fromJson = parseJsonGraph(text);
   if (fromJson) return fromJson;
   return parseLineGraph(text);
@@ -170,14 +176,15 @@ function parseGnuplotGraph(text: string): StudyGraphSpec | null {
   let pm: RegExpExecArray | null;
   while ((pm = plotRe.exec(plot))) titles.set(pm[1], pm[2] || pm[1]);
   const names = titles.size ? [...titles.keys()] : [...fns.keys()];
-  const xs = [xrange[0], (xrange[0] + xrange[1]) / 2, xrange[1]];
+  const xs = Array.from({ length: 61 }, (_, i) => xrange[0] + ((xrange[1] - xrange[0]) * i) / 60);
   const curves: GraphCurve[] = [];
   for (const name of names) {
     const expr = fns.get(name);
     if (!expr) continue;
     const points = xs
       .map((x) => {
-        const y = evalLinearExpr(expr, x);
+        const f = compileExpr(expr);
+        const y = f ? f(x) : evalLinearExpr(expr, x);
         return y == null ? null : { x, y };
       })
       .filter((p): p is GraphPoint => Boolean(p));
@@ -186,7 +193,7 @@ function parseGnuplotGraph(text: string): StudyGraphSpec | null {
     curves.push({
       id: name,
       label,
-      points: [points[0], points[points.length - 1]],
+      points,
       dash: /′|'|shifted|tax/i.test(label),
     });
   }
@@ -218,6 +225,13 @@ function parseLineGraph(text: string): StudyGraphSpec | null {
       const label = val.replace(/[0-9.,\s-]+/g, " ").trim() || `E${eq.length ? "′" : ""}`;
       if (pts[0]) eq.push({ at: pts[0], label });
     } else if (lk === "curves") continue;
+    else if (/^\s*y\s*=/i.test(val)) {
+      // Function curve: "TP: y = 10*sqrt(x), x = 0..16"
+      const [expr, range] = val.split(/,\s*(?=[xXqQL]\s*(?:=|in)\s*)/);
+      const r = (range || "").match(/(-?[\d.]+)\s*(?:\.\.|to|–|,)\s*(-?[\d.]+)/);
+      const points = sampleFn(expr, r ? +r[1] : 0, r ? +r[2] : 10, 90);
+      if (points.length >= 2) curves.push({ id: key, label: key, points, dash: /′|'|2$/.test(key) });
+    }
     else {
       const points = parsePoints(val);
       if (points.length >= 2) {
@@ -226,6 +240,7 @@ function parseLineGraph(text: string): StudyGraphSpec | null {
           label: key.replace(/^demand$/i, "D").replace(/^supply$/i, "S"),
           points,
           dash: /′|'|2$/.test(key),
+          linear: /\blinear\b|\bstraight\b/i.test(val),
         });
       }
     }
@@ -249,6 +264,7 @@ function parsePoints(s: string): GraphPoint[] {
 let graphSeq = 0;
 
 export function studyGraphSvg(spec: StudyGraphSpec) {
+  if (spec.chart) return chartSvg(spec.chart);
   const mark = `garr${(graphSeq += 1)}`;
   const W = 640;
   const H = 400;
@@ -280,7 +296,8 @@ export function studyGraphSvg(spec: StudyGraphSpec) {
   }
   const curves = spec.curves.map((c, i) => {
     const color = c.color || PALETTE[i % PALETTE.length];
-    const d = c.points.map((p, j) => `${j ? "L" : "M"}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(" ");
+    const px = c.points.map((p) => ({ x: sx(p.x), y: sy(p.y) }));
+    const d = c.linear || px.length < 3 ? px.map((p, j) => `${j ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") : smoothPath(px);
     const last = c.points[c.points.length - 1];
     const dash = c.dash ? ` stroke-dasharray="7 5"` : "";
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.4"${dash} />
@@ -311,6 +328,7 @@ function esc(s: string) {
 }
 
 export function studyGraphPlain(spec: StudyGraphSpec) {
+  if (spec.chart) return [spec.chart.title, `(${spec.chart.kind} chart)`, spec.read].filter(Boolean).join(": ");
   const curves = spec.curves.map((c) => `${c.label}: ${c.points.map((p) => `(${p.x}, ${p.y})`).join(" → ")}`).join("; ");
   const eq = spec.eq.map((e) => `${e.label} at (${e.at.x}, ${e.at.y})`).join("; ");
   return [spec.title, `${spec.yLabel} vs ${spec.xLabel}`, curves, eq, spec.read].filter(Boolean).join(": ");

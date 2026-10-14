@@ -153,7 +153,45 @@ Rules for graphs:
 - Axes labeled with the real variables (P and Q, wage and L, MU and Q, etc.).
 - Original curves solid (D, S, MC). Shifted curves dashed with a prime (D′, S′).
 - Mark equilibria (E, E′) and any tax/wedge points.
-- Two points make a straight line; add more points for curves (U-shaped cost, bowed PPF).
+- Draw the RIGHT kind of figure for what the course needs. Pick the chart type that a textbook or professor would use, never a generic line chart that has nothing to do with the point:
+  - Straight lines (linear demand/supply, budget lines): two points, e.g. D: 0,20 20,0
+  - Real curves (isoquants, indifference curves, cost curves, TP/MP, PPF, utility, exponential growth): write them as FUNCTIONS so they curve correctly, e.g.
+    Q1: y = 20/x, x = 1..12        (isoquant / indifference curve)
+    TP: y = 30*x^2 - x^3, x = 0..25
+    MC: y = 0.5*x^2 - 4*x + 20, x = 0..14
+    Supported: + - * / ^ ( ) sqrt log ln exp abs sin cos min max pi. Or give 5+ points and Askuala draws a smooth curve through them.
+  - Statistics and data: use a chart type line. Do not fake these with lines.
+
+\`\`\`graph
+type: histogram
+title: Shower times (n = 20)
+x: Minutes
+data: 3, 5, 6, 7, 7, 8, 8, 9, 10, 10, 11, 12, 12, 13, 15, 18, 22
+\`\`\`
+    (or bins: 0-5: 2, 5-10: 9, 10-15: 6, 15-20: 2)
+
+\`\`\`graph
+type: boxplot
+title: Scores by section
+y: Score
+Section A: 55, 68, 74, 81, 95
+Section B: 60, 72, 78, 85, 92 | 40, 99
+\`\`\`
+    (each row: min, Q1, median, Q3, max | outliers; or list the raw data and Askuala computes it)
+
+\`\`\`graph
+type: normal
+title: 95% confidence interval
+x: z
+mean: 0
+sd: 1
+shade: -1.96..1.96
+marks: -1.96, 1.96
+\`\`\`
+    (type: t with df: 9 for t-distributions; shade: >1.645 for a right tail, <-1.645 for a left tail; use it for p-values, critical values, sampling distributions)
+
+    Also: type: bar (bars: Econ: 40, Stats: 25), type: pie (slices: Rent: 45, Food: 25), type: scatter (points: 1,52 2,58 3,61, fit: auto for the least-squares line, or fit: y = 2x + 1).
+- Every figure must show something the lecture actually needs (its data, its distribution, its curves). Use real numbers from the lecture or a worked example.
 - After each figure, write 4 to 8 sentences: what each axis means, slope intuition, the shock, comparative statics, and surplus/welfare or constraint if it was in the lecture.
 - If this session truly has no figure, omit the Graphs heading. Do not invent a decorative graph.
 
