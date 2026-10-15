@@ -104,7 +104,26 @@ function quantile(sorted: number[], q: number) {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
+
+/** Gemini sometimes emits bar_chart { … } instead of type: histogram. Accept it so rebuilds still draw. */
+function parseLooseBarChart(text: string): ChartSpec | null {
+  if (!/\b(bar_chart|histogram)\s*\{/i.test(text)) return null;
+  const title = (text.match(/title:\s*"([^"]+)"/i) || text.match(/title:\s*'([^']+)'/i) || [])[1] || "Chart";
+  const xLabel = (text.match(/x_label:\s*"([^"]+)"/i) || text.match(/x(?:label)?:\s*"([^"]+)"/i) || [])[1] || "";
+  const yLabel = (text.match(/y_label:\s*"([^"]+)"/i) || text.match(/y(?:label)?:\s*"([^"]+)"/i) || [])[1] || "Frequency";
+  const block = text.match(/bars?:\s*\{([\s\S]*?)\}/i)?.[1] || text;
+  const bins: { a: number; b: number; n: number }[] = [];
+  for (const m of block.matchAll(/(-?[\d.]+)\s*:\s*(-?[\d.]+)/g)) {
+    const x = +m[1], n = +m[2];
+    if (!Number.isFinite(x) || !Number.isFinite(n)) continue;
+    bins.push({ a: x, b: x + 1, n });
+  }
+  return bins.length ? { kind: "histogram", title, xLabel, yLabel, bins, read: "" } : null;
+}
+
 export function parseChart(text: string): ChartSpec | null {
+  const loose = parseLooseBarChart(text);
+  if (loose) return loose;
   const kv = new Map<string, string>();
   const rows: [string, string][] = [];
   for (const raw of text.split(/\n+/)) {
@@ -123,9 +142,11 @@ export function parseChart(text: string): ChartSpec | null {
 
   if (/hist/.test(type)) {
     let bins: { a: number; b: number; n: number }[] = [];
-    const binTxt = kv.get("bins");
+    const binTxt = kv.get("bins") || kv.get("counts") || kv.get("bars") || "";
     if (binTxt && /-?[\d.]+\s*(?:-|–|to)\s*-?[\d.]+\s*:/.test(binTxt)) {
       for (const m of binTxt.matchAll(/(-?[\d.]+)\s*(?:-|–|to)\s*(-?[\d.]+)\s*:\s*([\d.]+)/g)) bins.push({ a: +m[1], b: +m[2], n: +m[3] });
+    } else if (binTxt && /(-?[\d.]+)\s*:\s*(-?[\d.]+)/.test(binTxt)) {
+      for (const m of binTxt.matchAll(/(-?[\d.]+)\s*:\s*(-?[\d.]+)/g)) bins.push({ a: +m[1], b: +m[1] + 1, n: +m[2] });
     } else if (kv.get("data")) {
       const data = nums(kv.get("data")!).sort((a, b) => a - b);
       if (!data.length) return null;

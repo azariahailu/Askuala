@@ -26,6 +26,7 @@ export function looksLikeGraphDsl(text: string) {
   if (!t) return false;
   if (/^\s*\{/.test(t) && /"curves"\s*:/.test(t)) return true;
   if (/^\s*(type|chart)\s*:\s*(hist|bar|column|pie|donut|box|scatter|normal|density|bell|t\b|t-?dist|sampling)/im.test(t)) return true;
+  if (/\b(bar_chart|histogram)\s*\{/i.test(t)) return true;
   const hasAxes = /^\s*(title|x|y|xlabel|ylabel)\s*:/im.test(t);
   const hasCurve = /^\s*[A-Za-z][A-Za-z0-9′']*\s*:\s*-?[\d.]/m.test(t) || /^\s*eq\s*:/im.test(t);
   return hasAxes && hasCurve;

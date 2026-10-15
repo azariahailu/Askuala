@@ -6,12 +6,15 @@ export function keepAndAddRequested(directions?: string) {
   const d = (directions || "").toLowerCase().replace(/\s+/g, " ").trim();
   if (!d) return false;
   if (/\b(rewrite|replace)\s+(everything|all|the whole|the entire|the guide)\b/.test(d)) return false;
+  // "Keep everything else and update/fix the chart" is an EDIT, not an add-on.
+  if (/\b(update|change|fix|edit|correct|make)\b/.test(d) && /\b(chart|graph|figure|histogram|boxplot|plot)\b/.test(d)) return false;
+  if (/\bkeep\b/.test(d) && /\b(update|change|fix|edit|correct|replace)\b/.test(d)) return false;
   if (/\bonly add\b/.test(d) || /\badd only\b/.test(d)) return true;
-  if (/\b(add|include|more)\b/.test(d) && /\bgraphs?\b/.test(d)) return true;
+  if (/\b(add|include|more)\b/.test(d) && /\bgraphs?\b/.test(d) && !/\b(update|change|fix|edit)\b/.test(d)) return true;
   if (/\bkeep\b/.test(d) && (/\badd\b/.test(d) || /\bappend\b/.test(d))) return true;
-  if (/keep (everything|all|it all|the (current|existing|same)|this)/.test(d)) return true;
-  if (/don'?t (rewrite|replace|change)( everything| it all| the (whole|entire|guide))?/.test(d)) return true;
-  if (/without (changing|rewriting|replacing)/.test(d)) return true;
+  if (/keep (everything|all|it all|the (current|existing|same)|this)/.test(d) && /\b(add|include|append|more)\b/.test(d)) return true;
+  if (/don'?t (rewrite|replace)( everything| it all| the (whole|entire|guide))?/.test(d) && /\b(add|include|append|more)\b/.test(d)) return true;
+  if (/without (rewriting|replacing)/.test(d) && /\b(add|include|append|more)\b/.test(d)) return true;
   return false;
 }
 
@@ -163,6 +166,7 @@ Rules for graphs:
     Supported: + - * / ^ ( ) sqrt log ln exp abs sin cos min max pi. Or give 5+ points and Askuala draws a smooth curve through them.
   - Statistics and data: use a chart type line. Do not fake these with lines.
   - MATCH THE SOURCE FIGURE TYPE. Look at the uploaded slides, PDFs and images. If the lecture shows a histogram (bars), redraw with type: histogram. If it shows a boxplot, use type: boxplot. Pie to pie, scatter to scatter, bar chart to bar. Smooth curves or function plots stay as function curves. Never replace a histogram with type: normal or a smooth line.
+  - Inside \`\`\`graph fences, ONLY Askuala key: value lines (type: histogram, bins: …). Never bar_chart { }, JSON plot objects, or plotting code.
   - Null distributions from simulation (coin flips, rflip, do_it, randomization, Buzz/Doris-style counts, frequency bars of a statistic): ALWAYS type: histogram with the lecture's bins or counts. Copy the counts from the slides when they are shown. Never type: normal for those.
   - type: normal / type: t is ONLY when the lecture itself draws a continuous theoretical z or t density (critical values, confidence intervals). If the slides use bars for the same idea, use histogram anyway.
 
@@ -294,6 +298,15 @@ The student's directions are binding instructions. Follow them exactly and compl
 - Change ONLY what the directions require. Every other heading, paragraph, formula, table, graph fence and example stays exactly as it is, word for word.
 - Do not shorten, summarize, reorder, re-title, or "improve" parts the student did not ask about.
 - Keep the same markdown conventions: dollar-delimited LaTeX, \`\`\`graph fences for figures, real language tags on code blocks.
+- When directions ask to change a chart, graph, or figure: replace that \`\`\`graph fence with a valid Askuala graph fence. For a histogram use EXACTLY this shape (real numbers from the lecture):
+\`\`\`graph
+type: histogram
+title: Null distribution (Buzz and Doris)
+x: Number of heads in 16 flips
+y: Frequency
+bins: 0-1: 0, 1-2: 1, 2-3: 22, 3-4: 105, 4-5: 283, 5-6: 679, 6-7: 1257, 7-8: 1786, 8-9: 1920, 9-10: 1726, 10-11: 1238, 11-12: 623, 12-13: 279, 13-14: 63, 14-15: 15, 15-16: 3
+\`\`\`
+  Never write bar_chart { }, matplotlib, ggplot, R plot code, mermaid, or any other figure DSL inside a graph fence. Those do not render.
 - Output the COMPLETE edited guide in markdown, nothing else: no preamble, no notes about what you changed.`,
         },
         {
