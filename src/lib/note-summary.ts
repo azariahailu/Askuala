@@ -162,6 +162,17 @@ Rules for graphs:
     MC: y = 0.5*x^2 - 4*x + 20, x = 0..14
     Supported: + - * / ^ ( ) sqrt log ln exp abs sin cos min max pi. Or give 5+ points and Askuala draws a smooth curve through them.
   - Statistics and data: use a chart type line. Do not fake these with lines.
+  - Null distributions from simulation (coin flips, rflip, do_it, randomization, Buzz/Doris-style counts): ALWAYS type: histogram with the lecture's bins or counts. Never type: normal for those.
+  - type: normal / type: t is ONLY for a continuous theoretical z or t density when the lecture actually draws a smooth curve (critical values, confidence intervals).
+
+\`\`\`graph
+type: histogram
+title: Null distribution (Buzz and Doris)
+x: Number of heads in 16 flips
+y: Frequency
+bins: 0-1: 1, 1-2: 1, 2-3: 22, 3-4: 105, 4-5: 283, 5-6: 679, 6-7: 1257, 7-8: 1786, 8-9: 1920, 9-10: 1726, 10-11: 1238, 11-12: 623, 12-13: 279, 13-14: 63, 14-15: 15, 15-16: 3
+\`\`\`
+    (or data: raw values; or bins for proportions. Prefer histogram whenever the slides show bars.)
 
 \`\`\`graph
 type: histogram
@@ -189,7 +200,7 @@ sd: 1
 shade: -1.96..1.96
 marks: -1.96, 1.96
 \`\`\`
-    (type: t with df: 9 for t-distributions; shade: >1.645 for a right tail, <-1.645 for a left tail; use it for p-values, critical values, sampling distributions)
+    (type: t with df: 9 for t-distributions; shade: >1.645 for a right tail, <-1.645 for a left tail. Do NOT use type: normal for simulation null distributions.)
 
     Also: type: bar (bars: Econ: 40, Stats: 25), type: pie (slices: Rent: 45, Food: 25), type: scatter (points: 1,52 2,58 3,61, fit: auto for the least-squares line, or fit: y = 2x + 1).
 - Every figure must show something the lecture actually needs (its data, its distribution, its curves). Use real numbers from the lecture or a worked example.
