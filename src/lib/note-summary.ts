@@ -154,7 +154,7 @@ Rules for graphs:
 - Axes labeled with the real variables (P and Q, wage and L, MU and Q, etc.).
 - Original curves solid (D, S, MC). Shifted curves dashed with a prime (D′, S′).
 - Mark equilibria (E, E′) and any tax/wedge points.
-- Draw the RIGHT kind of figure for what the course needs. Pick the chart type that a textbook or professor would use, never a generic line chart that has nothing to do with the point:
+- Draw the RIGHT kind of figure for what the course needs. Prefer the exact chart type shown in the uploaded slides or board photos. Pick what a textbook or professor would use, never a generic line chart that has nothing to do with the point:
   - Straight lines (linear demand/supply, budget lines): two points, e.g. D: 0,20 20,0
   - Real curves (isoquants, indifference curves, cost curves, TP/MP, PPF, utility, exponential growth): write them as FUNCTIONS so they curve correctly, e.g.
     Q1: y = 20/x, x = 1..12        (isoquant / indifference curve)
@@ -162,8 +162,9 @@ Rules for graphs:
     MC: y = 0.5*x^2 - 4*x + 20, x = 0..14
     Supported: + - * / ^ ( ) sqrt log ln exp abs sin cos min max pi. Or give 5+ points and Askuala draws a smooth curve through them.
   - Statistics and data: use a chart type line. Do not fake these with lines.
-  - Null distributions from simulation (coin flips, rflip, do_it, randomization, Buzz/Doris-style counts): ALWAYS type: histogram with the lecture's bins or counts. Never type: normal for those.
-  - type: normal / type: t is ONLY for a continuous theoretical z or t density when the lecture actually draws a smooth curve (critical values, confidence intervals).
+  - MATCH THE SOURCE FIGURE TYPE. Look at the uploaded slides, PDFs and images. If the lecture shows a histogram (bars), redraw with type: histogram. If it shows a boxplot, use type: boxplot. Pie to pie, scatter to scatter, bar chart to bar. Smooth curves or function plots stay as function curves. Never replace a histogram with type: normal or a smooth line.
+  - Null distributions from simulation (coin flips, rflip, do_it, randomization, Buzz/Doris-style counts, frequency bars of a statistic): ALWAYS type: histogram with the lecture's bins or counts. Copy the counts from the slides when they are shown. Never type: normal for those.
+  - type: normal / type: t is ONLY when the lecture itself draws a continuous theoretical z or t density (critical values, confidence intervals). If the slides use bars for the same idea, use histogram anyway.
 
 \`\`\`graph
 type: histogram
@@ -332,7 +333,7 @@ The student's directions are binding instructions. Follow them exactly and compl
     opts.title && `Session title: ${opts.title}`,
     opts.body && `Student notes:\n${opts.body}`,
     transcript && `Raw transcript (source only, do not echo — expand into a FULL lesson):\n${transcript.slice(0, 24000)}`,
-    opts.extraMaterials && `Uploaded files (source material: teach from this, do not dump it). The attached images and PDF pages are the same files: LOOK at them. Read every graph, diagram, table, equation and handwritten note in them, teach what they show, and redraw important graphs as graph fences with the real curves and numbers:\n${opts.extraMaterials.slice(0, 18000)}`,
+    opts.extraMaterials && `Uploaded files (source material: teach from this, do not dump it). The attached images and PDF pages are the same files: LOOK at them. Read every graph, diagram, table, equation and handwritten note in them, teach what they show, and redraw important graphs as graph fences. Match each figure's chart type exactly (histogram bars stay histograms, not smooth curves; boxplots stay boxplots):\n${opts.extraMaterials.slice(0, 18000)}`,
     existing && directions && `Current study guide draft (edit only what they asked):\n${existing.slice(0, 14000)}`,
     directions && `Student directions (follow these):\n${directions.slice(0, 6000)}`,
   ]

@@ -307,29 +307,10 @@ export function chartSvg(c: ChartSpec): string {
     const dots = c.points.map((p) => `<circle cx="${ax.sx(p.x).toFixed(1)}" cy="${ax.sy(p.y).toFixed(1)}" r="4" fill="#1d4ed8" fill-opacity="0.7"/>`).join("");
     return frame(c.title, c.xLabel, c.yLabel, ax.svg + dots + fit);
   }
-  // density — null distributions match the course style (histograms), not smooth curves
+  // density
   const span = c.dist === "t" ? 4.5 : 3.6;
   const x0 = c.mean - span * c.sd, x1 = c.mean + span * c.sd;
   const pdf = (x: number) => (c.dist === "t" ? tPdf((x - c.mean) / c.sd, c.df) / c.sd : normalPdf(x, c.mean, c.sd));
-  const asHist = /null/i.test(c.title) || /randomization|sampling dist/i.test(c.title);
-  if (asHist) {
-    const nBins = 28;
-    const w = (x1 - x0) / nBins;
-    const bins = Array.from({ length: nBins }, (_, i) => {
-      const a = x0 + i * w, b = a + w, mid = (a + b) / 2;
-      return { a, b, n: pdf(mid) };
-    });
-    const top = Math.max(...bins.map((b) => b.n)) * 1.12 || 1;
-    const ax = axes(x0, x1, 0, top);
-    const inShade = (mid: number) => c.shade.some(([a, b]) => mid >= Math.min(a, b) && mid <= Math.max(a, b));
-    const rects = bins.map((b) => {
-      const mid = (b.a + b.b) / 2;
-      const hot = inShade(mid);
-      return `<rect x="${ax.sx(b.a).toFixed(1)}" y="${ax.sy(b.n).toFixed(1)}" width="${Math.max(1, ax.sx(b.b) - ax.sx(b.a) - 0.6).toFixed(1)}" height="${(ax.sy(0) - ax.sy(b.n)).toFixed(1)}" fill="${hot ? "#6b3fa0" : "#9ca3af"}" fill-opacity="${hot ? 0.85 : 0.75}" stroke="#fbf6ea" stroke-width="0.6"/>`;
-    }).join("");
-    const marks = c.marks.map((m) => `<line x1="${ax.sx(m).toFixed(1)}" x2="${ax.sx(m).toFixed(1)}" y1="${ax.sy(0)}" y2="${ax.sy(top * 0.92).toFixed(1)}" stroke="#b91c1c" stroke-width="2"/><text x="${ax.sx(m).toFixed(1)}" y="${(ax.sy(top * 0.92) - 6).toFixed(1)}" text-anchor="middle" font-size="11" fill="#b91c1c" font-family="${FONT}">${fmt(m)}</text>`).join("");
-    return frame(c.title, c.xLabel || "Statistic", c.yLabel === "Density" ? "Frequency" : c.yLabel || "Frequency", ax.svg + rects + marks);
-  }
   const top = pdf(c.mean) * 1.15;
   const ax = axes(x0, x1, 0, top, { yTicks: false });
   const curve: Pt[] = [];
