@@ -109,6 +109,22 @@ export async function POST(req: Request) {
           note.audioSavedAt = nowIso();
           note.audioDriveUrl = undefined;
         }
+        const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+        if (files.length) {
+          const added: Attachment[] = [];
+          for (const file of files) {
+            const saved = await saveUpload(userId, file, file.name);
+            added.push({
+              id: nid(),
+              filename: file.name,
+              mime: file.type || "application/octet-stream",
+              size: saved.size,
+              path: saved.filename,
+              createdAt: nowIso(),
+            });
+          }
+          note.attachments = [...(note.attachments || []), ...added];
+        }
         note.updatedAt = nowIso();
         return { note };
       });

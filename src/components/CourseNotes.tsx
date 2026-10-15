@@ -332,10 +332,20 @@ export function CourseNotes({ courseId }: { courseId: string }) {
         )}
         <label className="mt-3 block text-sm">
           Attachments
-          <input type="file" multiple className="mt-1 block" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+          <input
+            type="file"
+            multiple
+            className="mt-1 block"
+            onChange={(e) => {
+              const picked = Array.from(e.target.files || []);
+              if (picked.length) setFiles((prev) => mergeFiles(prev, picked));
+              e.target.value = "";
+            }}
+          />
         </label>
+        <PendingFiles files={files} onRemove={(i) => setFiles((prev) => prev.filter((_, idx) => idx !== i))} />
         <p className="mt-1 text-xs text-muted">
-          PDF, Word, and text files are read into the study guide. For lecture video, use Record + transcribe or paste a transcript. Study guides and voice notes can go to your Drive under Askuala.
+          You can add several files (PDF, Word, images, text). Pick again to add more. They are read into the study guide. For lecture video, use Record + transcribe or paste a transcript.
         </p>
         {err && <p className="mt-2 text-sm text-red-400">{err}</p>}
         {savedMsg && <p className="mt-2 text-sm text-green-400">{savedMsg}</p>}
@@ -442,6 +452,15 @@ export function CourseNotes({ courseId }: { courseId: string }) {
             const next = json.notes?.find((n) => n.id === openNote.id);
             if (next) setOpenNote(next);
           }}
+          onAddFiles={async (extraFiles) => {
+            const form = new FormData();
+            form.set("updateId", openNote.id);
+            form.set("noteJson", JSON.stringify(openNote));
+            for (const f of extraFiles) form.append("files", f);
+            const json = await postForm("/api/notes", form);
+            const next = json.notes?.find((n) => n.id === openNote.id);
+            if (next) setOpenNote(next);
+          }}
           onSaveVoice={async (transcript, audio, guideDirections) => {
             const form = new FormData();
             form.set("updateId", openNote.id);
@@ -477,6 +496,38 @@ export function CourseNotes({ courseId }: { courseId: string }) {
   }
 }
 
+
+function fileKey(f: File) {
+  return `${f.name}:${f.size}:${f.lastModified}`;
+}
+
+function mergeFiles(prev: File[], next: File[]) {
+  const seen = new Set(prev.map(fileKey));
+  const out = [...prev];
+  for (const f of next) {
+    if (seen.has(fileKey(f))) continue;
+    seen.add(fileKey(f));
+    out.push(f);
+  }
+  return out;
+}
+
+function PendingFiles({ files, onRemove }: { files: File[]; onRemove: (i: number) => void }) {
+  if (!files.length) return null;
+  return (
+    <ul className="mt-2 space-y-1 text-xs text-ink">
+      {files.map((f, i) => (
+        <li key={fileKey(f)} className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate">{f.name}</span>
+          <button type="button" className="shrink-0 text-red-400" onClick={() => onRemove(i)}>
+            Remove
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function NoteCard({ note, onOpen, onDelete }: { note: CourseNote; onOpen: () => void; onDelete: () => void | Promise<void> }) {
   return (
     <article className="cursor-pointer rounded-xl border border-line bg-surface p-3 text-sm" onClick={onOpen}>
@@ -509,6 +560,7 @@ function StudyWindow({
   courseLabel,
   onClose,
   onRegenerate,
+  onAddFiles,
   onSaveVoice,
   onSaveSummary,
   onRestore,
@@ -517,6 +569,7 @@ function StudyWindow({
   courseLabel: string;
   onClose: () => void;
   onRegenerate: (guideDirections: string, files: File[], transcript: string, audio: Blob | null) => Promise<void>;
+  onAddFiles: (files: File[]) => Promise<void>;
   onSaveVoice: (transcript: string, audio: Blob | null, guideDirections: string) => Promise<void>;
   onSaveSummary: (summary: string) => Promise<void>;
   onRestore?: () => Promise<void>;
@@ -831,18 +884,42 @@ function StudyWindow({
                   placeholder="Rebuild directions (optional): add a topic or fix a section. Guides stay full lecture notes either way."
                 />
                 <label className="mb-3 block text-sm text-muted">
-                  Add files for this rebuild
+                  Add files to this note
                   <input
                     type="file"
                     multiple
                     className="mt-1 block w-full text-sm text-ink"
-                    onChange={(e) => setRebuildFiles(Array.from(e.target.files || []))}
+                    onChange={(e) => {
+                      const picked = Array.from(e.target.files || []);
+                      if (picked.length) setRebuildFiles((prev) => mergeFiles(prev, picked));
+                      e.target.value = "";
+                    }}
                   />
                 </label>
+                <PendingFiles files={rebuildFiles} onRemove={(i) => setRebuildFiles((prev) => prev.filter((_, idx) => idx !== i))} />
                 {rebuildFiles.length > 0 && (
-                  <p className="mb-3 text-xs text-muted">
-                    {rebuildFiles.map((f) => f.name).join(", ")} — will be folded into the next rebuild with your directions.
-                  </p>
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-line px-3 py-1.5 text-sm disabled:opacity-40"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        setErr("");
+                        try {
+                          await onAddFiles(rebuildFiles);
+                          setRebuildFiles([]);
+                        } catch (e) {
+                          setErr(e instanceof Error ? e.message : "Could not add files");
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      {busy ? "Saving files…" : "Save files without rebuilding"}
+                    </button>
+                    <p className="self-center text-xs text-muted">Or rebuild below to fold them into the study guide.</p>
+                  </div>
                 )}
               </>
             )}
