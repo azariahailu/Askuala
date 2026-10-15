@@ -10,7 +10,7 @@ const FONT = "ui-sans-serif, system-ui, sans-serif";
 const W = 640, H = 400, L = 64, R = 28, T = 40, B = 54;
 
 export type ChartSpec =
-  | { kind: "histogram"; title: string; xLabel: string; yLabel: string; bins: { a: number; b: number; n: number }[]; read: string }
+  | { kind: "histogram"; title: string; xLabel: string; yLabel: string; bins: { a: number; b: number; n: number }[]; marks?: number[]; read: string }
   | { kind: "bar"; title: string; xLabel: string; yLabel: string; bars: { label: string; v: number }[]; read: string }
   | { kind: "pie"; title: string; slices: { label: string; v: number }[]; read: string }
   | { kind: "box"; title: string; xLabel: string; yLabel: string; boxes: { label: string; min: number; q1: number; med: number; q3: number; max: number; out: number[] }[]; read: string }
@@ -158,7 +158,7 @@ export function parseChart(text: string): ChartSpec | null {
       bins = Array.from({ length: count }, (_, i) => ({ a: start + i * w, b: start + (i + 1) * w, n: 0 }));
       for (const v of data) bins[Math.min(count - 1, Math.floor((v - start) / w))].n++;
     }
-    return bins.length ? { kind: "histogram", title, xLabel, yLabel: yLabel || "Frequency", bins, read } : null;
+    return bins.length ? { kind: "histogram", title, xLabel, yLabel: yLabel || "Frequency", bins, marks: nums(kv.get("marks") || kv.get("mark") || ""), read } : null;
   }
   if (/bar|column/.test(type)) {
     const bars = kv.get("bars") ? pairs(kv.get("bars")!) : rows.filter(([k]) => !reserved.test(k)).map(([k, v]) => ({ label: k, v: nums(v)[0] })).filter((b) => Number.isFinite(b.v));
@@ -279,7 +279,8 @@ export function chartSvg(c: ChartSpec): string {
       const x0 = c.bins[0].a, x1 = c.bins[c.bins.length - 1].b;
       const ax = axes(x0, x1, lo, top);
       const rects = c.bins.map((b) => `<rect x="${ax.sx(b.a).toFixed(1)}" y="${ax.sy(b.n).toFixed(1)}" width="${(ax.sx(b.b) - ax.sx(b.a)).toFixed(1)}" height="${(ax.sy(0) - ax.sy(b.n)).toFixed(1)}" fill="#1f6f6a" fill-opacity="0.75" stroke="#fbf6ea" stroke-width="1"/>`).join("");
-      return frame(c.title, c.xLabel, c.yLabel, ax.svg + rects);
+      const hm = (c.marks ?? []).filter((m) => Number.isFinite(m) && m >= x0 && m <= x1).map((m) => `<line x1="${ax.sx(m).toFixed(1)}" x2="${ax.sx(m).toFixed(1)}" y1="${ax.sy(0)}" y2="${ax.sy(top).toFixed(1)}" stroke="#9a3412" stroke-width="2"/><text x="${ax.sx(m).toFixed(1)}" y="${(ax.sy(top) - 4).toFixed(1)}" text-anchor="middle" font-size="11" fill="#9a3412" font-family="${FONT}">${fmt(m)}</text>`).join("");
+      return frame(c.title, c.xLabel, c.yLabel, ax.svg + rects + hm);
     }
     const ax = axes(0, c.bars.length, lo, top, { xTicks: false });
     const slot = (W - L - R) / c.bars.length;

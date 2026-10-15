@@ -168,6 +168,8 @@ Rules for graphs:
   - MATCH THE SOURCE FIGURE TYPE. Look at the uploaded slides, PDFs and images. If the lecture shows a histogram (bars), redraw with type: histogram. If it shows a boxplot, use type: boxplot. Pie to pie, scatter to scatter, bar chart to bar. Smooth curves or function plots stay as function curves. Never replace a histogram with type: normal or a smooth line.
   - Inside \`\`\`graph fences, ONLY Askuala key: value lines (type: histogram, bins: …). Never bar_chart { }, JSON plot objects, or plotting code.
   - Null distributions from simulation (coin flips, rflip, do_it, randomization, Buzz/Doris-style counts, frequency bars of a statistic): ALWAYS type: histogram with the lecture's bins or counts. Copy the counts from the slides when they are shown. Never type: normal for those.
+  - Histograms may add marks: <number> (or mark:) to draw a thin solid red vertical reference line at that x value, e.g. the observed statistic on a null distribution (marks: 10).
+  - If you draw more than one histogram or chart, each must show DIFFERENT data or a different view (e.g. the main result vs a worked example with its own numbers). Never emit two identical charts or repeat the same graph fence in another section (such as a Graphs section).
   - type: normal / type: t is ONLY when the lecture itself draws a continuous theoretical z or t density (critical values, confidence intervals). If the slides use bars for the same idea, use histogram anyway.
 
 \`\`\`graph
@@ -306,6 +308,8 @@ x: Number of heads in 16 flips
 y: Frequency
 bins: 0-1: 0, 1-2: 1, 2-3: 22, 3-4: 105, 4-5: 283, 5-6: 679, 6-7: 1257, 7-8: 1786, 8-9: 1920, 9-10: 1726, 10-11: 1238, 11-12: 623, 12-13: 279, 13-14: 63, 14-15: 15, 15-16: 3
 \`\`\`
+  Optional on histograms: marks: <number> draws a solid red vertical reference line at that x (e.g. the observed statistic).
+  If more than one chart appears, each must show different data or a different view. Never leave two identical graph fences in the guide.
   Never write bar_chart { }, matplotlib, ggplot, R plot code, mermaid, or any other figure DSL inside a graph fence. Those do not render.
 - Output the COMPLETE edited guide in markdown, nothing else: no preamble, no notes about what you changed.`,
         },
